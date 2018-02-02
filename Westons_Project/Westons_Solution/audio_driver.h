@@ -3,6 +3,9 @@
 #include <string>
 #include <memory>
 
+/**
+ * \brief Class used to interact with the Port Audio library.
+ */
 class audio_driver
 {
 public:

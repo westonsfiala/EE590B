@@ -14,8 +14,10 @@ audio_driver::audio_driver(const uint32_t input_channels, const uint32_t output_
     m_stream_(nullptr)
 {
     // One of these two must be non 0.
-    assert(input_channels != 0 || output_channels != 0);
+    assert(input_channels == 1 || input_channels == 0);
     m_input_channels_ = input_channels;
+
+    assert(output_channels == 0 || output_channels == 1 || output_channels == 2);
     m_output_channels_ = output_channels;
 
     // Make a shared pointe
