@@ -1,3 +1,28 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="audio_driver.cpp">
+      <Filter>PortAudio</Filter>
+    </ClCompile>
+    <ClCompile Include="sound_data.cpp">
+      <Filter>SoundPlayer</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="PortAudio">
+      <UniqueIdentifier>{6a28668f-6356-4e7e-b3f1-352e7d6f5bce}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SoundPlayer">
+      <UniqueIdentifier>{fe4de643-f775-4dcb-89e9-1abe97eb1dc9}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="audio_driver.h">
+      <Filter>PortAudio</Filter>
+    </ClInclude>
+    <ClInclude Include="sound_data.h">
+      <Filter>SoundPlayer</Filter>
+    </ClInclude>
+  </ItemGroup>
 </Project>
