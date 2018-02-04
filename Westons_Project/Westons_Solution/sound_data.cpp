@@ -1,6 +1,5 @@
 #include "sound_data.h"
 #include <cassert>
-#include <algorithm>
 
 /**
  * \brief Construct a frequency data with the given values.
@@ -11,13 +10,13 @@
 sound_data::sound_data(const double frequency, const double volume, const double duration)
 {
     assert(frequency > 0.0);
-    m_frequency_ = std::abs(frequency);
+    m_frequency_ = frequency;
 
     assert(volume <= 100.0 && volume >= 0);
-    m_volume_ = std::min(std::max(volume, 0.0) ,100.0);
+    m_volume_ = volume;
 
     assert(duration >= 0.0);
-    m_duration_ = std::max(duration, 0.0);
+    m_duration_ = duration;
 }
 
 /**

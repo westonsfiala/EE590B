@@ -1,16 +1,38 @@
 #include <iostream>
 #include <cmath>
+#include <cassert>
+#include <regex>
 
 #include "portaudio.h"
 #include "../audio_driver.h"
-#include <vector>
 
 static int num_input_channels;
 static int num_output_channels;
 static int sample_rate;
 
-const static std::vector<float> sound_vector = {440.0, 500.0, 440.0, 220.0};
-const static float milliseconds_per_beat = 1000.0;
+static float frequency = 440;
+static float volume = 1.0;
+static bool passthrough = true;
+
+/**
+ * \brief Takes a float input and clips it between -1.0 & 1.0. If no clipping is needed, returns the input.
+ * \param input Float that needs to be checked for out of bounds input ranges. 
+ * \return Clipped version of the input value.
+ */
+float clipped_output(const float& input)
+{
+    if(input > 1.0f)
+    {
+        return 1.0f;
+    }
+
+    if(input < -1.0f)
+    {
+        return -1.0f;
+    }
+
+    return input;
+}
 
 /* This routine will be called by the PortAudio engine when audio is needed.
 It may called at interrupt level on some machines so don't do anything
@@ -33,41 +55,31 @@ static int patest_callback(const void* input_buffer, void* output_buffer,
 
     for (unsigned int i = 0; i < frames_per_buffer; i++)
     {
-        // Capture all of the input samples.
-        //input[i];
-
-        // Get the value of pi.
-        const static float pi = std::acos(-1);
-
-        // What frequency do we want?
-        static auto current_sound = 0;
-        static auto frequency = sound_vector[current_sound];
-
-        static float num_milliseconds = 0;
-
-        num_milliseconds += 1000.0 / sample_rate;
-
-        if (num_milliseconds >= milliseconds_per_beat)
+        // If we are passing through, assign input values to the output channels.
+        if(passthrough)
         {
-            num_milliseconds = 0.0;
-            current_sound++;
-
-            if(current_sound >= static_cast<int>(sound_vector.size()))
+            // Playback to the output.
+            for (auto j = 0; j < num_output_channels; ++j)
             {
-                current_sound = 0;
+                out[num_output_channels*i + j] = clipped_output(input[i] * volume);
             }
-
-            frequency = sound_vector[current_sound];
         }
-
-        // advance the frequency everytime we go through this loop.
-        data[0] += 2 * pi * frequency/ sample_rate;
-
-        // Playback to the output.
-        for(auto j = 0; j < num_output_channels; ++j)
+        // Not a passthrough, generate some sine waves.
+        else
         {
-            out[num_output_channels*i+j] = std::sin(data[0]);
+            // Get the value of pi.
+            const static auto pi = static_cast<float>(std::acos(-1));
+
+            // Advance the frequency in radians everytime we go through this loop.
+            *data += 2 * pi * frequency / static_cast<float>(sample_rate);
+
+            // Playback to the output.
+            for (auto j = 0; j < num_output_channels; ++j)
+            {
+                out[num_output_channels*i + j] = clipped_output(std::sin(*data) * volume);
+            }
         }
+        
     }
     return 0;
 }
@@ -76,6 +88,7 @@ int main()
 {
     std::cout << "Booting up Audio Driver" << std::endl;
 
+    // Set up our static variables.
     num_input_channels = 1;
     num_output_channels = 1;
     sample_rate = 44100;
@@ -88,9 +101,68 @@ int main()
         return 1;
     }
 
-    std::cout << "Playing sound for 5 seconds" << std::endl;
+    // Tell the user how to operate the program.
+    std::cout << "Starting Audio Driver in passthrough mode." << std::endl;
+    std::cout << "To switch between modes type 'passthrough' or 'generate'" << std::endl;
+    std::cout << "To adjust volume, enter: 'setVolume:{0-100}'" << std::endl;
+    std::cout << "Enter '0' to exit" << std::endl;
 
-    Pa_Sleep(10 * 1000);
+    while(frequency != 0.0f)
+    {
+        std::string read_string;
+        std::cin >> read_string;
+
+        auto set_volume = false;
+
+        // If we see the passthrough string, go to passthrough mode.
+        if (read_string == "passthrough" && !passthrough)
+        {
+            std::cout << "Entering passthrough mode" << std::endl;
+            passthrough = true;
+            continue;
+        }
+        
+        // If we see the generate string, go to frequency generation mode.
+        if (read_string == "generate" && passthrough)
+        {
+            std::cout << "Entering frequency generation mode" << std::endl << "Please enter an integer frequency to generate." << std::endl;
+            passthrough = false;
+            continue;
+        }
+
+        // If we find the substring 'setVolume:' at the start of our string, we are setting the volume.
+        if (read_string.find("setVolume:") == 0)
+        {
+            set_volume = true;
+        }
+
+        // stoi will crash if you send in bad values, filter them out.
+        read_string = std::regex_replace(read_string, std::regex("\\D"), "");
+
+        // If the string is empty, don't do anything, just continue on.        
+        if(read_string.empty())
+        {
+            continue;
+        }
+
+        const auto parsed_value = std::stoi(read_string);
+
+        // Set the volume of the output
+        if(set_volume)
+        {
+            volume = std::max(std::min(100.0f, static_cast<float>(parsed_value)), 0.0f) / 100.0f;
+
+            assert(volume >= 0.0f && volume <= 100.0f);
+            std::cout << "The new Volume is " << read_string << std::endl;
+        }
+        // Set the frequency of the generated signal.
+        else
+        {
+            frequency = static_cast<float>(parsed_value);
+
+            std::cout << "The new Frequency is " << read_string << std::endl;
+        }
+    }
 
     std::cout << "Stopping Audio Driver" << std::endl;
 
