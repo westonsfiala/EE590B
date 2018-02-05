@@ -10,9 +10,9 @@ static int num_input_channels;
 static int num_output_channels;
 static int sample_rate;
 
-static float frequency = 440;
-static float volume = 1.0;
-static bool passthrough = true;
+static float frequency;
+static float volume;
+static bool passthrough;
 
 /**
  * \brief Takes a float input and clips it between -1.0 & 1.0. If no clipping is needed, returns the input.
@@ -55,6 +55,7 @@ static int patest_callback(const void* input_buffer, void* output_buffer,
 
     for (unsigned int i = 0; i < frames_per_buffer; i++)
     {
+        assert(volume >= 0.0f && volume <= 1.0f);
         // If we are passing through, assign input values to the output channels.
         if(passthrough)
         {
@@ -69,9 +70,17 @@ static int patest_callback(const void* input_buffer, void* output_buffer,
         {
             // Get the value of pi.
             const static auto pi = static_cast<float>(std::acos(-1));
+            const static auto two_pi = 2.0f * pi;
 
             // Advance the frequency in radians everytime we go through this loop.
-            *data += 2 * pi * frequency / static_cast<float>(sample_rate);
+            *data += two_pi * frequency / static_cast<float>(sample_rate);
+
+            // If we go over 2*pi drop back down. If you let it just count up, you start getting weird effects.
+            // i.e. The frequency seems to change when nothing is modified, and it has noticable steps of frequency increase.
+            if(*data >= two_pi)
+            {
+                *data -= two_pi;
+            }
 
             // Playback to the output.
             for (auto j = 0; j < num_output_channels; ++j)
@@ -93,6 +102,18 @@ int main()
     num_output_channels = 1;
     sample_rate = 44100;
 
+    // Initialize the program, and let the user know how to operate it.
+    std::cout << "Starting Audio Driver in passthrough mode." << std::endl;
+    passthrough = true;
+    frequency = 440.0f;
+
+    std::cout << "To switch between modes type 'passthrough' or 'generate'" << std::endl;
+
+    std::cout << "To adjust volume, enter: 'setVolume:{0-100}'" << std::endl;
+    volume = 1.0;
+
+    std::cout << "Enter '0' to exit" << std::endl;
+
     auto driver = audio_driver(num_input_channels, num_output_channels, sample_rate, patest_callback);
 
     if(!driver.start())
@@ -101,11 +122,6 @@ int main()
         return 1;
     }
 
-    // Tell the user how to operate the program.
-    std::cout << "Starting Audio Driver in passthrough mode." << std::endl;
-    std::cout << "To switch between modes type 'passthrough' or 'generate'" << std::endl;
-    std::cout << "To adjust volume, enter: 'setVolume:{0-100}'" << std::endl;
-    std::cout << "Enter '0' to exit" << std::endl;
 
     while(frequency != 0.0f)
     {
@@ -125,7 +141,7 @@ int main()
         // If we see the generate string, go to frequency generation mode.
         if (read_string == "generate" && passthrough)
         {
-            std::cout << "Entering frequency generation mode" << std::endl << "Please enter an integer frequency to generate." << std::endl;
+            std::cout << "Entering frequency generation mode" << std::endl << "Please enter an integer frequency to generate (Hz)." << std::endl;
             passthrough = false;
             continue;
         }
