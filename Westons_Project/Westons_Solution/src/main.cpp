@@ -152,7 +152,7 @@ int main()
             set_volume = true;
         }
 
-        // stoi will crash if you send in bad values, filter them out.
+        // stoi will crash if you send in bad values, filter them out. Removes all non-digits.
         read_string = std::regex_replace(read_string, std::regex("\\D"), "");
 
         // If the string is empty, don't do anything, just continue on.        
@@ -161,7 +161,17 @@ int main()
             continue;
         }
 
-        const auto parsed_value = std::stoi(read_string);
+        // Get the parsed value from stoi. 
+        int parsed_value;
+        try
+        {
+            parsed_value = std::stoi(read_string);
+        }
+        // Catch all exceptions. If something bad slipped through the cracks, continue without changing anything.
+        catch (...)
+        {
+            continue;
+        }
 
         // Set the volume of the output
         if(set_volume)
