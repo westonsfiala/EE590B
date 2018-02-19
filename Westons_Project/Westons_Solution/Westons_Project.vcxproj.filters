@@ -2,11 +2,14 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="audio_driver.cpp">
+    <ClCompile Include="src\Audio Driver\audio_driver.cpp">
       <Filter>PortAudio</Filter>
     </ClCompile>
-    <ClCompile Include="sound_data.cpp">
+    <ClCompile Include="src\sound\sound_data.cpp">
       <Filter>SoundPlayer</Filter>
+    </ClCompile>
+    <ClCompile Include="src\rtmidi\RtMidi.cpp">
+      <Filter>rtmidi</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -16,13 +19,19 @@
     <Filter Include="SoundPlayer">
       <UniqueIdentifier>{fe4de643-f775-4dcb-89e9-1abe97eb1dc9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="rtmidi">
+      <UniqueIdentifier>{93aa3f5b-e0d1-4ffa-a0e0-3f9a67e88287}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="audio_driver.h">
+    <ClInclude Include="src\Audio Driver\audio_driver.h">
       <Filter>PortAudio</Filter>
     </ClInclude>
-    <ClInclude Include="sound_data.h">
+    <ClInclude Include="src\sound\sound_data.h">
       <Filter>SoundPlayer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\rtmidi\RtMidi.h">
+      <Filter>rtmidi</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

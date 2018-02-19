@@ -67,13 +67,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="audio_driver.cpp" />
-    <ClCompile Include="sound_data.cpp" />
+    <ClCompile Include="src\Audio Driver\audio_driver.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\rtmidi\RtMidi.cpp" />
+    <ClCompile Include="src\sound\sound_data.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="audio_driver.h" />
-    <ClInclude Include="sound_data.h" />
+    <ClInclude Include="src\Audio Driver\audio_driver.h" />
+    <ClInclude Include="src\rtmidi\RtMidi.h" />
+    <ClInclude Include="src\sound\sound_data.h" />
   </ItemGroup>
   <ItemDefinitionGroup />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

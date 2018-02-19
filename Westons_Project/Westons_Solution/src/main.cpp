@@ -3,8 +3,14 @@
 #include <cassert>
 #include <regex>
 
+// Port Audio Includes
+// All credit to: http://www.portaudio.com/
 #include "portaudio.h"
-#include "../audio_driver.h"
+#include "Audio Driver/audio_driver.h"
+
+// RtMidi
+// All credit to: http://www.music.mcgill.ca/~gary/rtmidi/
+#include "rtmidi/RtMidi.h"
 
 static int num_input_channels;
 static int num_output_channels;
@@ -95,6 +101,72 @@ static int patest_callback(const void* input_buffer, void* output_buffer,
 
 int main()
 {
+    std::cout << "Starting Up!" << std::endl;
+    int x = 5;
+
+    auto y = x + 2;
+
+    /*
+
+    // Test rtmidi
+    RtMidiIn  *midiin = nullptr;
+    RtMidiOut *midiout = nullptr;
+    // RtMidiIn constructor
+    try {
+        midiin = new RtMidiIn();
+    }
+    catch (RtMidiError &error) {
+        error.printMessage();
+        exit(EXIT_FAILURE);
+    }
+    // Check inputs.
+    unsigned int nPorts = midiin->getPortCount();
+    std::cout << "\nThere are " << nPorts << " MIDI input sources available.\n";
+    std::string portName;
+    for (unsigned int i = 0; i<nPorts; i++) {
+        try {
+            portName = midiin->getPortName(i);
+        }
+        catch (RtMidiError &error) {
+            error.printMessage();
+            goto cleanup;
+        }
+        std::cout << "  Input Port #" << i + 1 << ": " << portName << '\n';
+    }
+    // RtMidiOut constructor
+    try {
+        midiout = new RtMidiOut();
+    }
+    catch (RtMidiError &error) {
+        error.printMessage();
+        exit(EXIT_FAILURE);
+    }
+    // Check outputs.
+    nPorts = midiout->getPortCount();
+    std::cout << "\nThere are " << nPorts << " MIDI output ports available.\n";
+    for (unsigned int i = 0; i<nPorts; i++) {
+        try {
+            portName = midiout->getPortName(i);
+        }
+        catch (RtMidiError &error) {
+            error.printMessage();
+            goto cleanup;
+        }
+        std::cout << "  Output Port #" << i + 1 << ": " << portName << '\n';
+    }
+    std::cout << '\n';
+    // Clean up
+cleanup:
+    delete midiin;
+    delete midiout;
+    return 0;
+
+    // End rtmidi
+    */
+
+
+
+
     std::cout << "Booting up Audio Driver" << std::endl;
 
     // Set up our static variables.
