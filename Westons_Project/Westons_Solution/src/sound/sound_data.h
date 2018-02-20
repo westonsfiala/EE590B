@@ -5,15 +5,17 @@
  */
 struct sound_data
 {
-    explicit sound_data(double frequency, double volume, double duration);
+    explicit sound_data(float frequency, float phase_offset, float volume, float duration);
     ~sound_data() = default;
 
-    double get_frequency() const;
-    double get_volume() const;
-    double get_duration() const;
+    float get_frequency() const;
+    float get_phase_offset() const;
+    float get_volume() const;
+    float get_duration() const;
 
 private:
-    double m_frequency_;
-    double m_volume_;
-    double m_duration_;
+    float m_frequency_;
+    float m_phase_offset_;
+    float m_volume_;
+    float m_duration_;
 };

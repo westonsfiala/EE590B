@@ -2,34 +2,32 @@
 #include <cassert>
 
 /**
- * \brief Constructor for an audio driver that can have some number of input and output channels. All callback data is in float form.
- * \param input_channels Number of input channels on the audio driver. 1 = mono, 2 = stereo, 2+ = custom.
- * \param output_channels Number of output channels on the audio driver. 1 = mono, 2 = stereo, 2+ = custom.
- * \param sample_rate Sample rate of the audio driver.
- * \param stream_callback Callback function that will interact with the input and output sound buffers.
+ * \brief Constructor for an audio driver that can have some number of input and output channels.
  */
-audio_driver::audio_driver(const uint32_t input_channels, const uint32_t output_channels, const uint32_t sample_rate,
-                         PaStreamCallback* stream_callback):
+audio_driver::audio_driver(callback_info info):
     m_running_(false),
     m_stream_(nullptr)
 {
-    // One of these two must be non 0.
-    assert(input_channels >= 0);
-    m_input_channels_ = input_channels;
-
-    assert(output_channels >= 0);
-    m_output_channels_ = output_channels;
-
     // Make a shared pointer
-    m_data_ = std::make_shared<float*>();
+    assert(info.m_callback_data_ptr != nullptr);
+    m_data_ = info.m_callback_data_ptr;
+
+    // One of these two must be non 0.
+    assert(info.m_callback_data_ptr->num_input_channels >= 0);
+    m_input_channels_ = info.m_callback_data_ptr->num_input_channels;
+
+    assert(info.m_callback_data_ptr->num_output_channels >= 0);
+    m_output_channels_ = info.m_callback_data_ptr->num_output_channels;
+
+    assert(m_input_channels_ + m_output_channels_ != 0);
 
     // Need to have non-0 sample rate.
-    assert(sample_rate != 0);
-    m_sample_rate_ = sample_rate;
+    assert(info.m_callback_data_ptr->sample_rate != 0);
+    m_sample_rate_ = info.m_callback_data_ptr->sample_rate;
 
     // Need to have an actual callback.
-    assert(stream_callback != nullptr);
-    m_stream_callback_ = stream_callback;
+    assert(info.m_callback != nullptr);
+    m_stream_callback_ = info.m_callback;
 }
 
 /**

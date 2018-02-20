@@ -2,6 +2,7 @@
 #include <portaudio.h>
 #include <string>
 #include <memory>
+#include "../sound/sound_utilities.h"
 
 /**
  * \brief Class used to interact with the Port Audio library.
@@ -9,8 +10,7 @@
 class audio_driver
 {
 public:
-    audio_driver(uint32_t input_channels, uint32_t output_channels, uint32_t sample_rate,
-                PaStreamCallback* stream_callback);
+    audio_driver(callback_info info);
     ~audio_driver() = default;
 
     bool start();
@@ -33,7 +33,7 @@ private:
 
     PaStream* m_stream_;
 
-    std::shared_ptr<float*> m_data_;
+    std::shared_ptr<void> m_data_;
 
     std::string m_error_string_;
 };
