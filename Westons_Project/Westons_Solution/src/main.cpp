@@ -10,6 +10,8 @@
 #include "rtmidi/RtMidi.h"
 
 #include "sound/sound_utilities.h"
+#include "../passthrough_driver.h"
+#include "../generation_driver.h"
 
 int main()
 {
@@ -71,18 +73,19 @@ int main()
 
     std::cout << std::endl << "Booting up Audio Driver" << std::endl;
 
-    // Set up our static variables.
-    frequency = 440.0f;
-
     // Get vector of all the callbacks that have been constructed.
     std::vector<callback_info> available_callbacks;
 
     // Passthrough
-    auto passthrough_info = callback_info(passthrough_callback, std::make_shared<callback_data>(0.0, 1, 1, default_sample_rate), "Passthrough", passthrough_processer);
+    const auto pass_call_data = callback_data(1, 1, default_sample_rate);
+    passthrough_driver::init(pass_call_data);
+    const auto passthrough_info = callback_info(passthrough_driver::callback, pass_call_data, passthrough_driver::get_data(), "Passthrough", passthrough_driver::processor);
     available_callbacks.push_back(passthrough_info);
 
     // Frequency Generator
-    auto frequency_gen_info = callback_info(frequency_gen_callback, std::make_shared<callback_data>(0.0, 0, 1, default_sample_rate), "Frequency Generation", frequency_gen_processer);
+    const auto gen_call_data = callback_data(0, 1, default_sample_rate);
+    generation_driver::init(gen_call_data);
+    const auto frequency_gen_info = callback_info(generation_driver::callback, gen_call_data, generation_driver::get_data(), "Frequency Generation", generation_driver::processor);
     available_callbacks.push_back(frequency_gen_info);
 
     // Initialize the program, and let the user know how to operate it.
@@ -129,7 +132,7 @@ int main()
         // If we have a parsed value in a valid range, start up that callback!
         if(parsed_value >= 0 && parsed_value < static_cast<int>(available_callbacks.size()))
         {
-            auto selected_callback = available_callbacks[parsed_value];
+            const auto selected_callback = available_callbacks[parsed_value];
 
             // Construct the driver
             auto driver = audio_driver(selected_callback);

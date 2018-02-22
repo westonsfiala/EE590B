@@ -31,9 +31,12 @@ private:
 
     PaStreamCallback* m_stream_callback_;
 
+    std::shared_ptr<PaStreamParameters> m_input_params_;
+    std::shared_ptr<PaStreamParameters> m_output_params_;
+
     PaStream* m_stream_;
 
-    std::shared_ptr<void> m_data_;
+    void* m_data_;
 
     std::string m_error_string_;
 };

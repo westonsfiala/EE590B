@@ -7,10 +7,7 @@
 #include <memory>
 
 #include "portaudio.h"
-
-// global static variables that can be used in callback functions
-static float frequency;
-static float volume;
+#include <complex>
 
 // Get the value of pi.
 const static float pi = static_cast<float>(std::acos(-1));
@@ -28,18 +25,148 @@ inline float clipped_output(const float& input)
 }
 
 /**
- * \brief Struct used to hold information necessary for the operation of a port audio callback function.
+ * \brief Takes a float and ensures it is between 0 to two pi, by wrapping it to the correct value.
+ * \param input input float to wrap to a value between 0 to two pi.
+ * \return Value between 0 to two pi.
+ */
+inline float two_pi_wrapper(const float& input)
+{
+    // Copy the output.
+    auto output = input;
+
+    // Easier to deal with just positive values.
+    if(output < 0)
+    {
+        output = -output;
+    }
+
+    if(output >= two_pi)
+    {
+        const int scale = output / two_pi;
+        output -= scale*two_pi;
+    }
+
+    assert(output >= 0 && output < two_pi);
+    return output;
+}
+
+inline int phase_to_index(const float& phase, const uint32_t& max_index)
+{
+    assert(phase >= 0 && phase < two_pi);
+    return two_pi_wrapper(phase) / two_pi * max_index;
+}
+
+/**
+ * \brief Generates a vector of floats that represents one period of a sine wave over the given number of samples.
+ * \param num_samples number of samples to have in one period of the sine wave.
+ * \return vector that is number of samples long with one period of a sine wave captured.
+ */
+inline std::vector<float> sine_lookup(const uint32_t num_samples)
+{
+    std::vector<float> sine_table;
+
+    for(uint32_t i = 0; i < num_samples; ++i)
+    {
+        sine_table.push_back(std::sin(two_pi*i/num_samples));
+    }
+    return sine_table;
+}
+
+/**
+* \brief Generates a vector of floats that represents one period of a square wave over the given number of samples.
+* \param num_samples number of samples to have in one period of the square wave.
+* \return vector that is number of samples long with one period of a square wave captured.
+*/
+inline std::vector<float> square_lookup(const uint32_t num_samples)
+{
+    std::vector<float> square_table;
+
+    for (uint32_t i = 0; i < num_samples; ++i)
+    {
+        if(i < num_samples / 2)
+        {
+            square_table.push_back(1.0f);
+        }
+        else
+        {
+            square_table.push_back(-1.0f);
+        }
+    }
+    return square_table;
+}
+
+/**
+* \brief Generates a vector of floats that represents one period of a triangle wave over the given number of samples.
+* \param num_samples number of samples to have in one period of the triangle wave.
+* \return vector that is number of samples long with one period of a triangle wave captured.
+*/
+inline std::vector<float> triangle_lookup(const uint32_t num_samples)
+{
+    std::vector<float> triangle_table;
+
+    for (uint32_t i = 0; i < num_samples; ++i)
+    {
+        const auto segment_length = num_samples / 4;
+        // Segment 1, increasing from 0 to 1.
+        if(i < segment_length)
+        {
+            const auto slope = 1.0f / segment_length;
+            const auto constant = 0.0f;
+            triangle_table.push_back(slope * i + constant);
+        }
+        // Segment 2, decreasing from 1 to -1.
+        else if( i < segment_length * 3)
+        {
+            const auto slope = -1.0f / segment_length;
+            const auto constant = 2.0f;
+            triangle_table.push_back(slope * i + constant);
+        }
+        // Segment 3, increasing from -1 to 0.
+        else
+        {
+            const auto slope = 1.0f / segment_length;
+            const auto constant = -4.0f;
+            triangle_table.push_back(slope * i + constant);
+        }
+    }
+    return triangle_table;
+}
+
+/**
+* \brief Generates a vector of floats that represents one period of a sawtooth wave over the given number of samples.
+* \param num_samples number of samples to have in one period of the sawtooth wave.
+* \return vector that is number of samples long with one period of a sawtooth wave captured.
+*/
+inline std::vector<float> sawtooth_lookup(const uint32_t num_samples)
+{
+    std::vector<float> sawtooth_table;
+
+    for (uint32_t i = 0; i < num_samples; ++i)
+    {
+        const auto halfsamples = num_samples / 2.0f;
+        sawtooth_table.push_back((i - halfsamples) / halfsamples);
+    }
+    return sawtooth_table;
+}
+
+/**
+ * \brief Struct used to hold information necessary for the operation of a port audio driver.
  */
 struct callback_data
 {
-    callback_data(const float data, const int input_channels, const int output_channels, const int rate)
+    callback_data()
     {
-        user_data = data;
+        num_input_channels = 0;
+        num_output_channels = 0;
+        sample_rate = 0;
+    }
+
+    callback_data(const int input_channels, const int output_channels, const int rate)
+    {
         num_input_channels = input_channels;
         num_output_channels = output_channels;
         sample_rate = rate;
     }
-    float user_data;
     int num_input_channels;
     int num_output_channels;
     int sample_rate;
@@ -52,205 +179,17 @@ typedef void callback_processor();
  */
 struct callback_info
 {
-    callback_info(PaStreamCallback* callback, std::shared_ptr<callback_data> callback_data_ptr, const std::string& callback_name, callback_processor* process_method)
+    callback_info(PaStreamCallback* callback, const callback_data& call_data, void* callback_data_ptr, const std::string& callback_name, callback_processor* process_method)
     {
         m_callback = callback;
+        m_callback_data = call_data;
         m_callback_data_ptr = callback_data_ptr;
         m_callback_name = callback_name;
         m_process_method = process_method;
     }
     PaStreamCallback* m_callback;
-    std::shared_ptr<callback_data> m_callback_data_ptr;
+    callback_data m_callback_data;
+    void* m_callback_data_ptr;
     std::string m_callback_name;
     callback_processor* m_process_method;
 };
-
-/**
- * \brief Callback that passes the input buffer into the output buffer. Number of input & output streams is supplied through user data.
- * \param input_buffer Buffer of values that has been captured by a device.
- * \param output_buffer Buffer of values that will be output to a physical port.
- * \param frames_per_buffer Number of frames in each buffer.
- * \param time_info The time that the input values were captured, and the time the output values will be played.
- * \param status_flags Status bits that detail the current state of the streams.
- * \param user_data Pointer to some data that the callback expects. default_callback_data.
- * \return If the passthrough worked correctly. 0 for success, !0 for failure.
- */
-static int passthrough_callback(const void* input_buffer, void* output_buffer,
-    const unsigned long frames_per_buffer,
-    const PaStreamCallbackTimeInfo* time_info,
-    PaStreamCallbackFlags status_flags,
-    void* user_data)
-{
-    // stop warnings by casting to void.
-    static_cast<void>(status_flags);
-    static_cast<void>(time_info);
-
-    // Get the data pointer.
-    const auto data = static_cast<callback_data*>(user_data);
-
-    assert(data->num_input_channels == 1);
-    assert(data->num_output_channels >= 1);
-
-    // Make sure that volume is valid.
-    assert(volume >= 0.0f && volume <= 1.0f);
-
-    // Get the parts we care about ready.
-    auto* out = static_cast<float*>(output_buffer);
-    auto* input = static_cast<const float*>(input_buffer);
-
-    for (unsigned int i = 0; i < frames_per_buffer; i++)
-    {
-        // Loop the input data to all of the output channels.
-        for(auto j = 0; j < data->num_output_channels; ++j)
-        {
-            out[data->num_output_channels*i + j] = clipped_output(input[i]);
-        }
-    }
-    return 0;
-}
-
-/**
- * \brief Processor method for the passthrough mode. Waits for the user to enter anything into the terminal then quits.
- */
-static void passthrough_processer()
-{
-    std::cout << std::endl << "Started passthrough mode. The input audio will be played back to the output." << std::endl;
-    std::cout << "To exit, enter any string" << std::endl;
-
-    // Wait for any input, then exit.
-    std::string read_string;
-    std::cin >> read_string;
-
-    std::cout << "Exiting passthrough mode." << std::endl;
-}
-
-/**
-* \brief Callback that generates a sine wave on the output channel.
-* \param input_buffer Buffer of values that has been captured by a device.
-* \param output_buffer Buffer of values that will be output to a physical port.
-* \param frames_per_buffer Number of frames in each buffer.
-* \param time_info The time that the input values were captured, and the time the output values will be played.
-* \param status_flags Status bits that detail the current state of the streams.
-* \param user_data Pointer to some data that the callback expects.
-* \return If the passthrough worked correctly. 0 for success, !0 for failure.
-*/
-static int frequency_gen_callback(const void* input_buffer, void* output_buffer,
-    const unsigned long frames_per_buffer,
-    const PaStreamCallbackTimeInfo* time_info,
-    PaStreamCallbackFlags status_flags,
-    void* user_data)
-{
-    // stop warnings by casting to void.
-    static_cast<void>(status_flags);
-    static_cast<void>(time_info);
-    static_cast<void>(input_buffer);
-
-    // Get the data that we care about.
-    const auto data = static_cast<callback_data*>(user_data);
-
-    // Check for valid values.
-    assert(data->num_input_channels == 0);
-    assert(data->num_output_channels >= 1);
-
-    auto* out = static_cast<float*>(output_buffer);
-
-    for (unsigned int i = 0; i < frames_per_buffer; i++)
-    {
-
-        // Make sure nothing is wrong with volume.
-        assert(volume >= 0.0f && volume <= 1.0f);
-
-        // Advance the frequency in radians everytime we go through this loop.
-        data->user_data += two_pi * frequency / static_cast<float>(data->sample_rate);
-
-        // If we go over 2*pi drop back down. If you let it just count up, you start getting weird effects.
-        // i.e. The frequency seems to change when nothing is modified, and it has noticable steps of frequency increase.
-        if (data->user_data >= two_pi)
-        {
-            data->user_data -= two_pi;
-        }
-
-        // Playback to the output.
-        for (auto j = 0; j < data->num_output_channels; ++j)
-        {
-            out[data->num_output_channels*i + j] = clipped_output(std::sin(data->user_data) * volume);
-        }
-
-    }
-    return 0;
-}
-
-static void frequency_gen_processer()
-{
-    std::cout << std::endl << "Started Frequency Generator mode. A setable frequency sine wave will be played." << std::endl;
-
-
-    const std::string set_frequency_string = "setFrequency:";
-    std::cout << "To adjust frequency, enter '" << set_frequency_string << "'." << std::endl;
-    frequency = 440.0f;
-
-    const std::string set_volume_string = "setVolume:";
-    std::cout << "To adjust volume, enter: '" << set_volume_string << "{0-100}'" << std::endl;
-    volume = 1.0;
-
-    std::cout << "To exit, set the frequency to 0" << std::endl;
-
-    while (frequency != 0.0f)
-    {
-        // Wait for an input, then process it.
-        std::string read_string;
-        std::cin >> read_string;
-
-        auto set_volume = false;
-        auto set_frequency = false;
-
-        // If we find the substring 'setVolume:' at the start of our string, we are setting the volume.
-        if (read_string.find(set_volume_string) == 0)
-        {
-            set_volume = true;
-        }
-        else if(read_string.find(set_frequency_string) == 0)
-        {
-            set_frequency = true;
-        }
-
-        // stoi will crash if you send in bad values, filter them out. Removes all non-digits.
-        read_string = std::regex_replace(read_string, std::regex("\\D"), "");
-
-        // If the string is empty, don't do anything, just continue on.        
-        if (read_string.empty())
-        {
-            continue;
-        }
-
-        // Get the parsed value from stoi. 
-        int parsed_value;
-        try
-        {
-            parsed_value = std::stoi(read_string);
-        }
-        // Catch all exceptions. If something bad slipped through the cracks, continue without changing anything.
-        catch (...)
-        {
-            continue;
-        }
-
-        // Set the volume of the output
-        if (set_volume)
-        {
-            volume = std::max(std::min(100.0f, static_cast<float>(parsed_value)), 0.0f) / 100.0f;
-
-            assert(volume >= 0.0f && volume <= 100.0f);
-            std::cout << "The new Volume is " << read_string << std::endl;
-        }
-        // Set the frequency of the generated signal.
-        else if (set_frequency)
-        {
-            frequency = static_cast<float>(parsed_value);
-
-            std::cout << "The new Frequency is " << read_string << std::endl;
-        }
-    }
-
-    std::cout << "Exiting Frequency Generator mode." << std::endl;
-}

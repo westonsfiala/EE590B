@@ -13,17 +13,17 @@ audio_driver::audio_driver(callback_info info):
     m_data_ = info.m_callback_data_ptr;
 
     // One of these two must be non 0.
-    assert(info.m_callback_data_ptr->num_input_channels >= 0);
-    m_input_channels_ = info.m_callback_data_ptr->num_input_channels;
+    assert(info.m_callback_data.num_input_channels >= 0);
+    m_input_channels_ = info.m_callback_data.num_input_channels;
 
-    assert(info.m_callback_data_ptr->num_output_channels >= 0);
-    m_output_channels_ = info.m_callback_data_ptr->num_output_channels;
+    assert(info.m_callback_data.num_output_channels >= 0);
+    m_output_channels_ = info.m_callback_data.num_output_channels;
 
     assert(m_input_channels_ + m_output_channels_ != 0);
 
     // Need to have non-0 sample rate.
-    assert(info.m_callback_data_ptr->sample_rate != 0);
-    m_sample_rate_ = info.m_callback_data_ptr->sample_rate;
+    assert(info.m_callback_data.sample_rate != 0);
+    m_sample_rate_ = info.m_callback_data.sample_rate;
 
     // Need to have an actual callback.
     assert(info.m_callback != nullptr);
@@ -45,10 +45,71 @@ bool audio_driver::start()
             return false;
         }
 
+        // When we have an input channel, set up the parameters.
+        if (m_input_channels_ > 0)
+        {
+            // Save the pointer so that we can keep track of it till the driver goes away.
+            m_input_params_ = std::make_shared<PaStreamParameters>();
+
+            // Use the default device. This is the system default set in the OS.
+            const auto default_device_index = Pa_GetDefaultInputDevice();
+            const auto default_device_info = Pa_GetDeviceInfo(default_device_index);
+
+            // This should never be negative.
+            assert(default_device_info->maxInputChannels > 0);
+            m_input_channels_ = std::min(static_cast<uint32_t>(default_device_info->maxInputChannels),
+                                         m_input_channels_);
+            // Sanity check again.
+            assert(m_input_channels_ > 0);
+
+            // Set the params to the values that we expect.
+            m_input_params_->device = default_device_index;
+            m_input_params_->channelCount = m_input_channels_;
+            m_input_params_->sampleFormat = paFloat32;
+            m_input_params_->suggestedLatency = default_device_info->defaultHighInputLatency;
+            m_input_params_->hostApiSpecificStreamInfo = nullptr;
+        }
+            // No input channels, input params need to be nullptr.
+        else
+        {
+            m_input_params_ = nullptr;
+        }
+
+        // When we have an output channel, set up the parameters.
+        if (m_output_channels_ > 0)
+        {
+            // Save the pointer so that we can keep track of it till the driver goes away.
+            m_output_params_ = std::make_shared<PaStreamParameters>();
+
+            // Use the default device. This is the system default set in the OS.
+            const auto default_device_index = Pa_GetDefaultOutputDevice();
+            const auto default_device_info = Pa_GetDeviceInfo(default_device_index);
+
+            // This should never be negative.
+            assert(default_device_info->maxOutputChannels > 0);
+            m_output_channels_ = std::min(static_cast<uint32_t>(default_device_info->maxOutputChannels),
+                                          m_output_channels_);
+            // Sanity check again.
+            assert(m_output_channels_ > 0);
+
+            // Set the params to the values that we expect.
+            m_output_params_->device = default_device_index;
+            m_output_params_->channelCount = m_output_channels_;
+            m_output_params_->sampleFormat = paFloat32;
+            m_output_params_->suggestedLatency = default_device_info->defaultHighOutputLatency;
+            m_output_params_->hostApiSpecificStreamInfo = nullptr;
+        }
+            // No output channels, output params need to be nullptr.
+        else
+        {
+            m_output_params_ = nullptr;
+        }
+
+
         // Open the stream to the default hardware devices.
-        const auto err = Pa_OpenDefaultStream(&m_stream_, m_input_channels_, m_output_channels_, paFloat32,
-                                              m_sample_rate_, paFramesPerBufferUnspecified, m_stream_callback_,
-                                              m_data_.get());
+        const auto err = Pa_OpenStream(&m_stream_, m_input_params_.get(), m_output_params_.get(),
+                                       m_sample_rate_, 64, paNoFlag,
+                                       m_stream_callback_, m_data_);
 
         if (error_detected(err))
         {
