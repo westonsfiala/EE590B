@@ -5,14 +5,15 @@
     <ClCompile Include="src\Audio Driver\audio_driver.cpp">
       <Filter>PortAudio</Filter>
     </ClCompile>
-    <ClCompile Include="src\sound\sound_data.cpp">
-      <Filter>SoundPlayer</Filter>
-    </ClCompile>
     <ClCompile Include="src\rtmidi\RtMidi.cpp">
       <Filter>rtmidi</Filter>
     </ClCompile>
     <ClCompile Include="passthrough_driver.cpp" />
     <ClCompile Include="generation_driver.cpp" />
+    <ClCompile Include="src\sound\note_data.cpp">
+      <Filter>SoundPlayer</Filter>
+    </ClCompile>
+    <ClCompile Include="sound_data.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="PortAudio">
@@ -29,9 +30,6 @@
     <ClInclude Include="src\Audio Driver\audio_driver.h">
       <Filter>PortAudio</Filter>
     </ClInclude>
-    <ClInclude Include="src\sound\sound_data.h">
-      <Filter>SoundPlayer</Filter>
-    </ClInclude>
     <ClInclude Include="src\rtmidi\RtMidi.h">
       <Filter>rtmidi</Filter>
     </ClInclude>
@@ -40,5 +38,9 @@
     </ClInclude>
     <ClInclude Include="passthrough_driver.h" />
     <ClInclude Include="generation_driver.h" />
+    <ClInclude Include="src\sound\note_data.h">
+      <Filter>SoundPlayer</Filter>
+    </ClInclude>
+    <ClInclude Include="sound_data.h" />
   </ItemGroup>
 </Project>

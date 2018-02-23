@@ -14,6 +14,35 @@ const static float pi = static_cast<float>(std::acos(-1));
 const static float two_pi = 2.0f * pi;
 const static int default_sample_rate = 44100;
 
+enum wave_type
+{
+    sine,
+    square,
+    triangle,
+    sawtooth
+};
+
+inline wave_type from_string(const std::string& wave)
+{
+    if(wave == "sine")
+    {
+        return sine;
+    }
+    if(wave == "square")
+    {
+        return square;
+    }
+    if(wave == "triangle")
+    {
+        return triangle;
+    }
+    if(wave == "sawtooth")
+    {
+        return sawtooth;
+    }
+    throw std::runtime_error("No such type as: " + wave);
+}
+
 /**
 * \brief Takes a float input and clips it between -1.0 & 1.0. If no clipping is needed, returns the input.
 * \param input Float that needs to be checked for out of bounds input ranges.

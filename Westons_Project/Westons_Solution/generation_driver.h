@@ -25,14 +25,12 @@ public:
             square = square_lookup(num_samples);
             triangle = triangle_lookup(num_samples);
             sawtooth = sawtooth_lookup(num_samples);
-            phase = 0.0f;
             data = call_data;
         }
         std::vector<float> sine;
         std::vector<float> square;
         std::vector<float> triangle;
         std::vector<float> sawtooth;
-        float phase;
         callback_data data;
     };
 };

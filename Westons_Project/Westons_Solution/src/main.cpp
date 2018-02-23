@@ -77,7 +77,7 @@ int main()
     std::vector<callback_info> available_callbacks;
 
     // Passthrough
-    const auto pass_call_data = callback_data(1, 1, default_sample_rate);
+    const auto pass_call_data = callback_data(1, 2, default_sample_rate);
     passthrough_driver::init(pass_call_data);
     const auto passthrough_info = callback_info(passthrough_driver::callback, pass_call_data, passthrough_driver::get_data(), "Passthrough", passthrough_driver::processor);
     available_callbacks.push_back(passthrough_info);

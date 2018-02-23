@@ -7,7 +7,7 @@ static float volume;
 void passthrough_driver::init(callback_data data)
 {
     m_data_ptr = std::make_shared<callback_data>(data);
-    volume = 1.0f;
+    volume = 0.5f;
 }
 
 /**
@@ -44,16 +44,22 @@ int passthrough_driver::callback(const void* input_buffer, void* output_buffer,
 
     // Get the parts we care about ready.
     auto* out = static_cast<float*>(output_buffer);
-    auto* input = static_cast<const float*>(input_buffer);
+    const auto* input = static_cast<const float*>(input_buffer);
 
+    uint64_t tracker = 0;
     for (unsigned int i = 0; i < frames_per_buffer; i++)
     {
+        const auto output_val = clipped_output(input[i] * volume);
         // Loop the input data to all of the output channels.
         for (auto j = 0; j < data->num_output_channels; ++j)
         {
-            out[data->num_output_channels*i + j] = clipped_output(input[i]);
+            ++tracker;
+            out[data->num_output_channels*i + j] = output_val;
         }
     }
+
+    // Just a saftey to moke sure that we actually did fill up the channels.
+    assert(tracker == frames_per_buffer * data->num_output_channels);
     return 0;
 }
 

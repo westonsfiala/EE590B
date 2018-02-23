@@ -45,6 +45,7 @@ bool audio_driver::start()
             return false;
         }
 
+        /*
         // When we have an input channel, set up the parameters.
         if (m_input_channels_ > 0)
         {
@@ -66,7 +67,7 @@ bool audio_driver::start()
             m_input_params_->device = default_device_index;
             m_input_params_->channelCount = m_input_channels_;
             m_input_params_->sampleFormat = paFloat32;
-            m_input_params_->suggestedLatency = default_device_info->defaultHighInputLatency;
+            m_input_params_->suggestedLatency = default_device_info->defaultLowInputLatency;
             m_input_params_->hostApiSpecificStreamInfo = nullptr;
         }
             // No input channels, input params need to be nullptr.
@@ -96,7 +97,7 @@ bool audio_driver::start()
             m_output_params_->device = default_device_index;
             m_output_params_->channelCount = m_output_channels_;
             m_output_params_->sampleFormat = paFloat32;
-            m_output_params_->suggestedLatency = default_device_info->defaultHighOutputLatency;
+            m_output_params_->suggestedLatency = default_device_info->defaultLowOutputLatency;
             m_output_params_->hostApiSpecificStreamInfo = nullptr;
         }
             // No output channels, output params need to be nullptr.
@@ -110,6 +111,10 @@ bool audio_driver::start()
         const auto err = Pa_OpenStream(&m_stream_, m_input_params_.get(), m_output_params_.get(),
                                        m_sample_rate_, 64, paNoFlag,
                                        m_stream_callback_, m_data_);
+        */
+
+        const auto err = Pa_OpenDefaultStream(&m_stream_, m_input_channels_, m_output_channels_,
+            paFloat32, m_sample_rate_, paFramesPerBufferUnspecified, m_stream_callback_, m_data_);
 
         if (error_detected(err))
         {
