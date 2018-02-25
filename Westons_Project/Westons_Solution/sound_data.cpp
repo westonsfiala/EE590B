@@ -1,4 +1,5 @@
 #include "sound_data.h"
+#include <cassert>
 
 /**
  * \brief Adds the given note to the sound.
@@ -6,23 +7,34 @@
  */
 void sound_data::add_note(std::shared_ptr<note_data> new_note)
 {
+    assert(new_note);
     m_notes.emplace_back(new_note);
 }
 
 /**
- * \brief Gets the note volume to apply to all notes. 
- * \return Note volume to apply to all played notes. Value is between 0.0 <-> 1.0.
+ * \brief Removes the given note from the sound.
+ * \param remove_note Note to remove from the sound.
+ */
+void sound_data::remove_note(const std::shared_ptr<note_data>& remove_note)
+{
+    assert(remove_note);
+    m_notes.remove(remove_note);
+}
+
+/**
+ * \brief Gets the note volume_ to apply to all notes. 
+ * \return Note volume_ to apply to all played notes. Value is between 0.0 <-> 1.0.
  */
 float sound_data::get_note_volume() const
 {
     auto max_volume = 1.0f;
 
-    // If we have more than 1 note, diminish the volume of all notes.
+    // If we have more than 1 note, diminish the volume_ of all notes.
     if(!m_notes.empty())
     {
         // Don't want to divide by 0.
         assert(m_notes.size());
-        max_volume = max_volume / m_notes.size();
+        max_volume = max_volume / static_cast<float>(m_notes.size());
     }
 
     // Should never be able to have these happen.
@@ -49,7 +61,7 @@ void sound_data::process(const int sample_rate, const int num_samples)
         if(note->m_duration > 0.0f)
         {
             // Subtract away the milliseconds that passed.
-            note->m_duration -= 1000.0f * static_cast<float>(num_samples) / sample_rate;
+            note->m_duration -= 1000.0f * static_cast<float>(num_samples) / static_cast<float>(sample_rate);
             if(note->m_duration < 0.0f)
             {
                 notes_to_reap.push_back(note);

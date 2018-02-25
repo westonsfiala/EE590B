@@ -10,7 +10,7 @@
 class audio_driver
 {
 public:
-    audio_driver(callback_info info);
+    explicit audio_driver(sound_utilities::callback_info info);
     ~audio_driver() = default;
 
     bool start();

@@ -1,11 +1,14 @@
 #pragma once
 #include "src/sound/note_data.h"
 #include <list>
+#include <memory>
 
 class sound_data
 {
 public:
     void add_note(std::shared_ptr<note_data> new_note);
+
+    void remove_note(const std::shared_ptr<note_data>& remove_note);
 
     float get_note_volume() const;
 

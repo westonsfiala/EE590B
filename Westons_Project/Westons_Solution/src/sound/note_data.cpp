@@ -9,17 +9,17 @@
  * \param duration Duration of the sound in milliseconds. Negative valued duration means infinite play time.
  * \param wave Type of wave to be used by this sound
  */
-note_data::note_data(const float frequency, const float phase_offset, const float duration, const wave_type wave)
+note_data::note_data(const float frequency, const float phase_offset, const float duration, const sound_utilities::wave_type wave)
 {
     assert(frequency > 0.0f);
     m_frequency = frequency;
 
-    assert(phase_offset <= two_pi && phase_offset >= 0.0f);
+    assert(phase_offset <= sound_utilities::two_pi && phase_offset >= 0.0f);
     m_phase_offset = phase_offset;
 
     m_duration = duration;
 
-    assert(wave == wave_type::sine || wave == wave_type::square || wave == wave_type::sawtooth || wave == wave_type::triangle);
+    assert(wave == sound_utilities::sine || wave == sound_utilities::square || wave == sound_utilities::sawtooth || wave == sound_utilities::triangle);
     m_wave = wave;
 
     m_current_phase = m_phase_offset;

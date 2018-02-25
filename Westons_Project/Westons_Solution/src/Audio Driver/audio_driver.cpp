@@ -4,7 +4,7 @@
 /**
  * \brief Constructor for an audio driver that can have some number of input and output channels.
  */
-audio_driver::audio_driver(callback_info info):
+audio_driver::audio_driver(sound_utilities::callback_info info):
     m_running_(false),
     m_stream_(nullptr)
 {
@@ -45,7 +45,6 @@ bool audio_driver::start()
             return false;
         }
 
-        /*
         // When we have an input channel, set up the parameters.
         if (m_input_channels_ > 0)
         {
@@ -111,10 +110,6 @@ bool audio_driver::start()
         const auto err = Pa_OpenStream(&m_stream_, m_input_params_.get(), m_output_params_.get(),
                                        m_sample_rate_, 64, paNoFlag,
                                        m_stream_callback_, m_data_);
-        */
-
-        const auto err = Pa_OpenDefaultStream(&m_stream_, m_input_channels_, m_output_channels_,
-            paFloat32, m_sample_rate_, paFramesPerBufferUnspecified, m_stream_callback_, m_data_);
 
         if (error_detected(err))
         {

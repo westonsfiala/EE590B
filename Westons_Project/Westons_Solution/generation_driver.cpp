@@ -2,23 +2,58 @@
 #include "sound_data.h"
 
 #include <sstream>
+#include <regex>
+#include <memory>
+#include <cassert>
+#include <iostream>
+
+bool generation_driver::initializied_ = false;;
 
 // Our data pointer.
-static std::shared_ptr<generation_driver::generation_data> m_data_ptr;
-
-// The precision that the built in raspberry pi audio output is capable of.
-static int lookup_table_size(1 << 11);
+sound_utilities::callback_data generation_driver::data_ = sound_utilities::callback_data();
 
 // values used in the callback.
-static float volume;
-static sound_data sound;
+float generation_driver::volume_ = 0.0f;
+sound_data generation_driver::sound_ = sound_data();
 
-void generation_driver::init(const callback_data& data)
+
+bool generation_driver::init(sound_utilities::callback_data& data)
 {
-    m_data_ptr = std::make_shared<generation_data>(lookup_table_size, data);
+    Pa_Initialize();
+
+    auto failed = false;
+
+    // Get the default device and see if we can play with the given data.
+    const auto output_device_index = Pa_GetDefaultOutputDevice();
+    const auto output_device = Pa_GetDeviceInfo(output_device_index);
+
+    if (!output_device || output_device->maxOutputChannels == 0)
+    {
+        std::cout << "No output channels are available on the default playback device." << std::endl;
+        failed = true;
+    }
+    Pa_Terminate();
+
+    if(failed)
+    {
+        return false;
+    }
+
+    // Setup the values to what we allow them to be.
+    data.num_input_channels = 0;
+    data.num_output_channels = 1;
+    data.sample_rate = sound_utilities::default_sample_rate;
+
+    // Get our data pointer ready.
+    data_ = data;
 
     // Notes are so loud by themselves at max volume. Drop that down!
-    volume = 0.1f;
+    volume_ = 0.1f;
+
+    // Say that we have been initialized.
+    initializied_ = true;
+
+    return initializied_;
 }
 
 /**
@@ -43,68 +78,79 @@ int generation_driver::callback(const void* input_buffer, void* output_buffer,
     static_cast<void>(input_buffer);
 
     // Get the data that we care about.
-    const auto data = static_cast<generation_data*>(user_data);
+    const auto data = static_cast<sound_utilities::callback_data*>(user_data);
 
     // Check for valid values.
-    assert(data->data.num_input_channels == 0);
-    assert(data->data.num_output_channels >= 1);
+    assert(data->num_input_channels == 0);
+    assert(data->num_output_channels >= 1);
 
     auto* out = static_cast<float*>(output_buffer);
 
+    uint64_t tracker = 0;
     for (unsigned int i = 0; i < frames_per_buffer; i++)
     {
-        // Make sure nothing is wrong with volume.
-        assert(volume >= 0.0f && volume <= 1.0f);
+        // Make sure nothing is wrong with volume_.
+        assert(volume_ >= 0.0f && volume_ <= 1.0f);
 
         auto play_val = 0.0f;
 
         // Go through all of the notes in the sound and advance their current phase.
-        for(auto note : sound.m_notes)
+        for(const auto& note : sound_.m_notes)
         {
-            const auto note_volume = sound.get_note_volume();
+            const auto note_volume = sound_.get_note_volume();
 
             switch (note->m_wave)
             {
-            case sine:
-                play_val += data->sine[phase_to_index(note->m_current_phase, lookup_table_size)] * note_volume;
-                note->m_current_phase = two_pi_wrapper(note->m_current_phase + two_pi * note->m_frequency / static_cast<float>(data->data.sample_rate));
+            case sound_utilities::sine:
+                play_val += sound_utilities::wave_lookup_tables.sine[sound_utilities::phase_to_index(note->m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
-            case square:
-                play_val += data->square[phase_to_index(note->m_current_phase, lookup_table_size)] * note_volume;
-                note->m_current_phase = two_pi_wrapper(note->m_current_phase + two_pi * note->m_frequency / static_cast<float>(data->data.sample_rate));
+            case sound_utilities::square:
+                play_val += sound_utilities::wave_lookup_tables.square[sound_utilities::phase_to_index(note->m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
-            case triangle:
-                play_val += data->triangle[phase_to_index(note->m_current_phase, lookup_table_size)] * note_volume;
-                note->m_current_phase = two_pi_wrapper(note->m_current_phase + two_pi * note->m_frequency / static_cast<float>(data->data.sample_rate));
+            case sound_utilities::triangle:
+                play_val += sound_utilities::wave_lookup_tables.triangle[sound_utilities::phase_to_index(note->m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
-            case sawtooth:
-                play_val += data->sawtooth[phase_to_index(note->m_current_phase, lookup_table_size)] * note_volume;
-                note->m_current_phase = two_pi_wrapper(note->m_current_phase + two_pi * note->m_frequency / static_cast<float>(data->data.sample_rate));
+            case sound_utilities::sawtooth:
+                play_val += sound_utilities::wave_lookup_tables.sawtooth[sound_utilities::phase_to_index(note->m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             default:
                 assert(false); // We should never hit default.
                 break;
             }
+            
+            // Advance the phase.
+            note->m_current_phase = sound_utilities::two_pi_wrapper(note->m_current_phase + sound_utilities::two_pi * note->m_frequency / static_cast<float>(data->sample_rate));
         }
 
         // Process all the notes every sample.
-        sound.process(data->data.sample_rate, 1);
+        sound_.process(data->sample_rate, 1);
 
-        // Apply the master volume.
-        play_val = clipped_output(play_val * volume);
+        // Apply the master volume_.
+        play_val = sound_utilities::clipped_output(play_val * volume_);
 
         // Playback to the output.
-        for (auto j = 0; j < data->data.num_output_channels; ++j)
+        for (auto j = 0; j < data->num_output_channels; ++j)
         {
-            out[data->data.num_output_channels*i + j] = play_val;
+            ++tracker;
+            out[data->num_output_channels*i + j] = play_val;
         }
-
     }
+
+    // Just a saftey to moke sure that we actually did fill up the channels.
+    assert(tracker == frames_per_buffer * data->num_output_channels);
+
     return 0;
 }
 
 void generation_driver::processor()
 {
+    // If we were never initialized, quit.
+    if (!initializied_)
+    {
+        std::cout << "Generation Driver was not initialized. Quitting driver." << std::endl;
+        return;
+    }
+
     std::cout << std::endl << "Started Frequency Generator mode." << std::endl;
 
     // string that will find {0 or 1 -}{1+ digits}{0 or 1 period}{0+ digits}
@@ -117,17 +163,17 @@ void generation_driver::processor()
 
     const std::string set_volume_string = "setVolume:";
 
-    // regex that tests for setting the volume.
+    // regex that tests for setting the volume_.
     const std::regex set_volume_regex(start_of_string_regex_string + set_volume_string // string identifier
-        + float_regex_string + end_of_string_regex_string); // volume
+        + float_regex_string + end_of_string_regex_string); // volume_
 
-    // Tell them how to adjust the volume.
-    std::cout << "To adjust volume, enter: '" << set_volume_string << "{0.0 <-> 100.0}'" << std::endl;
+    // Tell them how to adjust the volume_.
+    std::cout << "To adjust volume_, enter: '" << set_volume_string << "{0.0 <-> 100.0}'" << std::endl;
     std::cout << "Example. setVolume:10.0" << std::endl;
 
     // strings needed for adding a note.
     const std::string add_note_string = "addNote:";
-    const char add_note_separator = ':';
+    const auto add_note_separator = ':';
 
     // Strings for the wave types.
     const std::string sine_string = "sine";
@@ -180,10 +226,10 @@ void generation_driver::processor()
             continue;
         }
 
-        // Check for setting the volume.
+        // Check for setting the volume_.
         if(std::regex_match(read_string, set_volume_regex))
         {
-            // Match, lets adjust volume.
+            // Match, lets adjust volume_.
 
             // Get rid of everything but the float.
             const auto volume_string = std::regex_replace(read_string, std::regex(set_volume_string), "");
@@ -197,25 +243,25 @@ void generation_driver::processor()
             // If anything goes wrong. Quit.
             catch(...)
             {
-                std::cout << "Unable to change the volume, could not convert '" << volume_string << "' to float." << std::endl;
+                std::cout << "Unable to change the volume_, could not convert '" << volume_string << "' to float." << std::endl;
                 continue;
             }
 
             if(new_volume < 0.0f)
             {
-                std::cout << "Cannot have negative volume, setting it to 0.0." << std::endl;
+                std::cout << "Cannot have negative volume_, setting it to 0.0." << std::endl;
                 new_volume = 0.0f;
             }
 
             if (new_volume > 100.0f)
             {
-                std::cout << "Cannot have volume above 100.0, setting it to 100.0." << std::endl;
+                std::cout << "Cannot have volume_ above 100.0, setting it to 100.0." << std::endl;
                 new_volume = 100.0f;
             }
 
-            // Update the volume and tell the user.
-            volume = new_volume / 100.0f;
-            std::cout << "Set Volume to : " << volume << std::endl;
+            // Update the volume_ and tell the user.
+            volume_ = new_volume / 100.0f;
+            std::cout << "Set Volume to : " << volume_ << std::endl;
 
             continue;
         }
@@ -257,14 +303,14 @@ void generation_driver::processor()
             float frequency;
             float phase;
             float duration;
-            wave_type wave;
+            sound_utilities::wave_type wave;
 
             try
             {
                 frequency = std::stof(frequency_string);
                 phase = std::stof(phase_string);
                 duration = std::stof(duration_string);
-                wave = from_string(wave_string);
+                wave = sound_utilities::from_string(wave_string);
             }
             catch (...)
             {
@@ -280,7 +326,7 @@ void generation_driver::processor()
             << ", Duration: " << duration 
             << ", Wave Type: " << wave_string << std::endl;
 
-            sound.add_note(new_note);
+            sound_.add_note(new_note);
             continue;
         }
 
@@ -288,6 +334,8 @@ void generation_driver::processor()
     }
 
     std::cout << "Exiting Frequency Generator mode." << std::endl;
+
+    initializied_ = false;
 }
 
 /**
@@ -296,6 +344,5 @@ void generation_driver::processor()
 */
 void* generation_driver::get_data()
 {
-    assert(m_data_ptr);
-    return m_data_ptr.get();
+    return &data_;
 }

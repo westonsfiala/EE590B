@@ -12,86 +12,69 @@
 #include "sound/sound_utilities.h"
 #include "../passthrough_driver.h"
 #include "../generation_driver.h"
+#include "../midi_driver.h"
 
 int main()
 {
     std::cout << "Starting Up!" << std::endl;
 
-    std::cout << "Finding MIDI ports" << std::endl;
-
-    // Test rtmidi
-    std::shared_ptr<RtMidiIn> midiin = nullptr;
-    std::shared_ptr<RtMidiOut> midiout = nullptr;
-    // RtMidiIn constructor
-    try {
-        midiin = std::make_shared<RtMidiIn>();
-    }
-    catch (RtMidiError &error) {
-        error.printMessage();
-        exit(EXIT_FAILURE);
-    }
-
-    // Check inputs.
-    unsigned int nPorts = midiin->getPortCount();
-    std::cout << std::endl << "There are " << nPorts << " MIDI input sources available." << std::endl;
-    std::string portName;
-    for (unsigned int i = 0; i<nPorts; i++) {
-        try {
-            portName = midiin->getPortName(i);
-        }
-        catch (RtMidiError &error) {
-            error.printMessage();
-            break;
-        }
-        std::cout << "  Input Port #" << i + 1 << ": " << portName << std::endl;
-    }
-    // RtMidiOut constructor
-    try {
-        midiout = std::make_shared<RtMidiOut>();
-    }
-    catch (RtMidiError &error) {
-        error.printMessage();
-        exit(EXIT_FAILURE);
-    }
-
-    // Check outputs.
-    nPorts = midiout->getPortCount();
-    std::cout << std::endl << "There are " << nPorts << " MIDI output ports available." << std::endl;
-    for (unsigned int i = 0; i<nPorts; i++) {
-        try {
-            portName = midiout->getPortName(i);
-        }
-        catch (RtMidiError &error) {
-            error.printMessage();
-            break;
-        }
-        std::cout << "  Output Port #" << i + 1 << ": " << portName << std::endl;
-    }
-    std::cout << "Ending MIDI Query" << std::endl;
-
-    // End rtmidi
-
     std::cout << std::endl << "Booting up Audio Driver" << std::endl;
 
     // Get vector of all the callbacks that have been constructed.
-    std::vector<callback_info> available_callbacks;
+    std::vector<sound_utilities::callback_info> available_callbacks;
 
     // Passthrough
-    const auto pass_call_data = callback_data(1, 2, default_sample_rate);
-    passthrough_driver::init(pass_call_data);
-    const auto passthrough_info = callback_info(passthrough_driver::callback, pass_call_data, passthrough_driver::get_data(), "Passthrough", passthrough_driver::processor);
+    auto pass_call_data = sound_utilities::callback_data();
+    if(passthrough_driver::init(pass_call_data))
+    {
+    const auto passthrough_info = sound_utilities::callback_info(passthrough_driver::callback, pass_call_data, passthrough_driver::get_data(), "Passthrough", passthrough_driver::processor);
     available_callbacks.push_back(passthrough_info);
+    }
+    else
+    {
+        std::cout << "Passthrough Driver could not be initialized and will be disabled." << std::endl;
+    }
 
     // Frequency Generator
-    const auto gen_call_data = callback_data(0, 1, default_sample_rate);
-    generation_driver::init(gen_call_data);
-    const auto frequency_gen_info = callback_info(generation_driver::callback, gen_call_data, generation_driver::get_data(), "Frequency Generation", generation_driver::processor);
-    available_callbacks.push_back(frequency_gen_info);
+    auto gen_call_data = sound_utilities::callback_data();
+    if(generation_driver::init(gen_call_data))
+    {
+        const auto frequency_gen_info = sound_utilities::callback_info(generation_driver::callback, gen_call_data, generation_driver::get_data(), "Frequency Generation", generation_driver::processor);
+        available_callbacks.push_back(frequency_gen_info);
+    }
+    else
+    {
+        std::cout << "Frequency Generation Driver could not be initialized and will be disabled." << std::endl;
+    }
 
-    // Initialize the program, and let the user know how to operate it.
-    std::cout << "Starting Audio Driver program." << std::endl;
+    // Midi Reader
+    auto midi_call_data = sound_utilities::callback_data();
+    if(midi_driver::init(midi_call_data))
+    {
+        const auto midi_gen_info = sound_utilities::callback_info(midi_driver::callback, midi_call_data, midi_driver::get_data(), "Midi player", midi_driver::processor);
+        available_callbacks.push_back(midi_gen_info);
+    }
+    else
+    {
+        std::cout << "Midi Driver could not be initialized and will be disabled." << std::endl;
+    }
 
     auto quit = false;
+
+    // If we have no drivers, quit out.
+    if(available_callbacks.empty())
+    {
+        std::cout << "No drivers are currently enabled, exiting program" << std::endl;
+        quit = true;
+        
+        // Assert here so that it will break instead of just exiting.
+        assert(false);
+    }
+    else
+    {
+        // Initialize the program, and let the user know how to operate it.
+        std::cout << "Starting Audio Driver program." << std::endl;
+    }
 
     // Until promted to exit, try to run.
     while (!quit)
@@ -141,7 +124,7 @@ int main()
             if (!driver.start())
             {
                 std::cerr << "Failed to start [" << selected_callback.m_callback_name << "]" << std::endl << "Error: " + driver.get_error() << std::endl;
-                return 1;
+                continue;
             }
 
             // Go into the method that processes the callback.
@@ -151,7 +134,7 @@ int main()
             if(!driver.stop())
             {
                 std::cerr << "Failed to stop [" << selected_callback.m_callback_name << "]" << std::endl << "Error: " + driver.get_error() << std::endl;
-                return 1;
+                continue;
             }
         }
 

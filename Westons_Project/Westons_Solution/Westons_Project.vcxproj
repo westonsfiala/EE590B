@@ -68,15 +68,19 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="generation_driver.cpp" />
+    <ClCompile Include="midi_driver.cpp" />
     <ClCompile Include="passthrough_driver.cpp" />
     <ClCompile Include="sound_data.cpp" />
     <ClCompile Include="src\Audio Driver\audio_driver.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\rtmidi\RtMidi.cpp" />
     <ClCompile Include="src\sound\note_data.cpp" />
+    <ClCompile Include="src\sound\sound_utilities.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="generation_driver.h" />
+    <ClInclude Include="MidiMessages.h" />
+    <ClInclude Include="midi_driver.h" />
     <ClInclude Include="passthrough_driver.h" />
     <ClInclude Include="sound_data.h" />
     <ClInclude Include="src\Audio Driver\audio_driver.h" />

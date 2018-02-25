@@ -1,13 +1,59 @@
 #include "passthrough_driver.h"
 
-static std::shared_ptr<callback_data> m_data_ptr;
+#include <memory>
+#include <cassert>
+#include <iostream>
 
-static float volume;
+bool passthrough_driver::initializied_ = false;
 
-void passthrough_driver::init(callback_data data)
+sound_utilities::callback_data passthrough_driver::data_ = sound_utilities::callback_data();
+
+float passthrough_driver::volume_ = 0.0f;
+
+bool passthrough_driver::init(sound_utilities::callback_data& data)
 {
-    m_data_ptr = std::make_shared<callback_data>(data);
-    volume = 0.5f;
+    Pa_Initialize();
+
+    auto failed = false;
+
+    // Get the default device and see if we can play with the given data.
+    const auto output_device_index = Pa_GetDefaultOutputDevice();
+    const auto output_device = Pa_GetDeviceInfo(output_device_index);
+
+    if(!output_device || output_device->maxOutputChannels == 0)
+    {
+        std::cout << "No output channels are available on the default playback device." << std::endl;
+        failed = true;
+    }
+
+    // Get the default input device and see if we can capture with the given data.
+    const auto input_device_index = Pa_GetDefaultInputDevice();
+    const auto input_device = Pa_GetDeviceInfo(input_device_index);
+
+    if(!input_device || input_device->maxInputChannels == 0)
+    {
+        std::cout << "No input channels are available on the default capture device." << std::endl;
+        failed = true;
+    }
+
+    Pa_Terminate();
+
+    if(failed)
+    {
+        return false;
+    }
+
+    // Setup the values to what we allow them to be.
+    data.num_input_channels = 1;
+    data.num_output_channels = 1;
+    data.sample_rate = sound_utilities::default_sample_rate;
+
+    // Looks good. Lets get our stuff setup.
+    data_ = data;
+    volume_ = 0.5f;
+
+    initializied_ = true;
+    return initializied_;
 }
 
 /**
@@ -34,13 +80,13 @@ int passthrough_driver::callback(const void* input_buffer, void* output_buffer,
     assert(user_data);
 
     // Get the data pointer.
-    const auto data = static_cast<callback_data*>(user_data);
+    const auto data = static_cast<sound_utilities::callback_data*>(user_data);
 
     assert(data->num_input_channels == 1);
     assert(data->num_output_channels >= 1);
 
-    // Make sure that volume is valid.
-    assert(volume >= 0.0f && volume <= 1.0f);
+    // Make sure that volume_ is valid.
+    assert(volume_ >= 0.0f && volume_ <= 1.0f);
 
     // Get the parts we care about ready.
     auto* out = static_cast<float*>(output_buffer);
@@ -49,7 +95,7 @@ int passthrough_driver::callback(const void* input_buffer, void* output_buffer,
     uint64_t tracker = 0;
     for (unsigned int i = 0; i < frames_per_buffer; i++)
     {
-        const auto output_val = clipped_output(input[i] * volume);
+        const auto output_val = sound_utilities::clipped_output(input[i] * volume_);
         // Loop the input data to all of the output channels.
         for (auto j = 0; j < data->num_output_channels; ++j)
         {
@@ -68,6 +114,13 @@ int passthrough_driver::callback(const void* input_buffer, void* output_buffer,
 */
 void passthrough_driver::processor()
 {
+    // If we were never initialized, quit.
+    if (!initializied_)
+    {
+        std::cout << "Passthrough Driver was not initialized. Quitting driver." << std::endl;
+        return;
+    }
+
     std::cout << std::endl << "Started passthrough mode. The input audio will be played back to the output." << std::endl;
     std::cout << "To exit, enter any string" << std::endl;
 
@@ -76,6 +129,8 @@ void passthrough_driver::processor()
     std::cin >> read_string;
 
     std::cout << "Exiting passthrough mode." << std::endl;
+
+    initializied_ = false;
 }
 
 /**
@@ -84,6 +139,5 @@ void passthrough_driver::processor()
  */
 void* passthrough_driver::get_data()
 {
-    assert(m_data_ptr);
-    return m_data_ptr.get();
+    return &data_;
 }
