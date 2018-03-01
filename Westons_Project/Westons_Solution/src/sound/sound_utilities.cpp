@@ -73,7 +73,7 @@ float sound_utilities::two_pi_wrapper(const float& input)
 int sound_utilities::phase_to_index(const float& phase, const uint32_t& max_index)
 {
     assert(phase >= 0 && phase < two_pi);
-    return static_cast<int>(two_pi_wrapper(phase) / two_pi) * max_index;
+    return static_cast<int>(two_pi_wrapper(phase) * max_index / two_pi);
 }
 
 /**

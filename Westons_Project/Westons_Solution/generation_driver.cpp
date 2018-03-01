@@ -1,11 +1,13 @@
 #include "generation_driver.h"
 #include "sound_data.h"
+#include "src/Audio Driver/audio_driver.h"
 
 #include <sstream>
 #include <regex>
 #include <memory>
 #include <cassert>
 #include <iostream>
+#include <chrono>
 
 bool generation_driver::initializied_ = false;;
 
@@ -16,25 +18,16 @@ sound_utilities::callback_data generation_driver::data_ = sound_utilities::callb
 float generation_driver::volume_ = 0.0f;
 sound_data generation_driver::sound_ = sound_data();
 
+float phase = 0.0f;
 
+/**
+* \brief Checks if the driver can be run at this time, and fills out the callback data.
+* \param data Callback data reference to fill.
+* \return If the driver can be run.
+*/
 bool generation_driver::init(sound_utilities::callback_data& data)
 {
-    Pa_Initialize();
-
-    auto failed = false;
-
-    // Get the default device and see if we can play with the given data.
-    const auto output_device_index = Pa_GetDefaultOutputDevice();
-    const auto output_device = Pa_GetDeviceInfo(output_device_index);
-
-    if (!output_device || output_device->maxOutputChannels == 0)
-    {
-        std::cout << "No output channels are available on the default playback device." << std::endl;
-        failed = true;
-    }
-    Pa_Terminate();
-
-    if(failed)
+    if(!audio_driver::check_channels(0,1))
     {
         return false;
     }
@@ -83,6 +76,11 @@ int generation_driver::callback(const void* input_buffer, void* output_buffer,
     // Check for valid values.
     assert(data->num_input_channels == 0);
     assert(data->num_output_channels >= 1);
+    assert(initializied_);
+
+    // Do some checks for time.
+    const auto alloted_time = time_info->outputBufferDacTime - time_info->currentTime;
+    const auto start_time = std::chrono::system_clock::now();
 
     auto* out = static_cast<float*>(output_buffer);
 
@@ -95,23 +93,23 @@ int generation_driver::callback(const void* input_buffer, void* output_buffer,
         auto play_val = 0.0f;
 
         // Go through all of the notes in the sound and advance their current phase.
-        for(const auto& note : sound_.m_notes)
+        for(auto& note : sound_.m_notes)
         {
-            const auto note_volume = sound_.get_note_volume();
+            const auto note_volume = sound_.m_note_volume;
 
-            switch (note->m_wave)
+            switch (note.m_wave)
             {
             case sound_utilities::sine:
-                play_val += sound_utilities::wave_lookup_tables.sine[sound_utilities::phase_to_index(note->m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.sine[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             case sound_utilities::square:
-                play_val += sound_utilities::wave_lookup_tables.square[sound_utilities::phase_to_index(note->m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.square[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             case sound_utilities::triangle:
-                play_val += sound_utilities::wave_lookup_tables.triangle[sound_utilities::phase_to_index(note->m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.triangle[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             case sound_utilities::sawtooth:
-                play_val += sound_utilities::wave_lookup_tables.sawtooth[sound_utilities::phase_to_index(note->m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.sawtooth[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             default:
                 assert(false); // We should never hit default.
@@ -119,7 +117,7 @@ int generation_driver::callback(const void* input_buffer, void* output_buffer,
             }
             
             // Advance the phase.
-            note->m_current_phase = sound_utilities::two_pi_wrapper(note->m_current_phase + sound_utilities::two_pi * note->m_frequency / static_cast<float>(data->sample_rate));
+            note.m_current_phase = sound_utilities::two_pi_wrapper(note.m_current_phase + sound_utilities::two_pi * note.m_frequency / static_cast<float>(data->sample_rate));
         }
 
         // Process all the notes every sample.
@@ -138,6 +136,11 @@ int generation_driver::callback(const void* input_buffer, void* output_buffer,
 
     // Just a saftey to moke sure that we actually did fill up the channels.
     assert(tracker == frames_per_buffer * data->num_output_channels);
+
+    // See that we fulfiled the time requirements.
+    std::chrono::duration<double> elapsed_time = std::chrono::system_clock::now() - start_time;
+    const auto elapsed_seconds = elapsed_time.count();
+    assert(elapsed_seconds < alloted_time);
 
     return 0;
 }
@@ -319,7 +322,7 @@ void generation_driver::processor()
             }
 
             // Make the new note, tell the user about it, then add it.
-            const auto new_note = std::make_shared<note_data>(frequency, phase, duration, wave);
+            const auto new_note = note_data(frequency, phase, duration, wave);
 
             std::cout << "Adding a new note with Frequency: " << frequency 
             << ", Phase Offset: " << phase 
@@ -335,7 +338,7 @@ void generation_driver::processor()
 
     std::cout << "Exiting Frequency Generator mode." << std::endl;
 
-    initializied_ = false;
+    sound_.m_notes.clear();
 }
 
 /**

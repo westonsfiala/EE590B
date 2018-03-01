@@ -4,6 +4,7 @@
 #include <cassert>
 #include <chrono>
 #include <thread>
+#include "src/Audio Driver/audio_driver.h"
 
 
 bool midi_driver::initializied_ = false;;
@@ -20,24 +21,14 @@ std::shared_ptr<RtMidiIn> midi_driver::midi_reader_ = nullptr;
 float midi_driver::volume_ = 0.0f;
 sound_data midi_driver::sound_ = sound_data();
 
+/**
+* \brief Checks if the driver can be run at this time, and fills out the callback data.
+* \param data Callback data reference to fill.
+* \return If the driver can be run.
+*/
 bool midi_driver::init(sound_utilities::callback_data& data)
 {
-    Pa_Initialize();
-
-    auto failed = false;
-
-    // Get the default device and see if we can play with the given data.
-    const auto output_device_index = Pa_GetDefaultOutputDevice();
-    const auto output_device = Pa_GetDeviceInfo(output_device_index);
-
-    if (!output_device || output_device->maxOutputChannels == 0)
-    {
-        std::cout << "No output channels are available on the default playback device." << std::endl;
-        failed = true;
-    }
-    Pa_Terminate();
-
-    if(failed)
+    if(!audio_driver::check_channels(0,1))
     {
         return false;
     }
@@ -89,6 +80,7 @@ int midi_driver::callback(const void* input_buffer, void* output_buffer, unsigne
     // Check for valid values.
     assert(data->num_input_channels == 0);
     assert(data->num_output_channels >= 1);
+    assert(initializied_);
 
     auto* out = static_cast<float*>(output_buffer);
 
@@ -101,23 +93,23 @@ int midi_driver::callback(const void* input_buffer, void* output_buffer, unsigne
         auto play_val = 0.0f;
 
         // Go through all of the notes in the sound, get their value, and advance their phase.
-        for (const auto& note : sound_.m_notes)
+        for (auto& note : sound_.m_notes)
         {
-            const auto note_volume = sound_.get_note_volume();
+            const auto note_volume = sound_.m_note_volume;
 
-            switch (note->m_wave)
+            switch (note.m_wave)
             {
             case sound_utilities::sine:
-                play_val += sound_utilities::wave_lookup_tables.sine[sound_utilities::phase_to_index(note->m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.sine[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             case sound_utilities::square:
-                play_val += sound_utilities::wave_lookup_tables.square[sound_utilities::phase_to_index(note->m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.square[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             case sound_utilities::triangle:
-                play_val += sound_utilities::wave_lookup_tables.triangle[sound_utilities::phase_to_index(note->m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.triangle[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             case sound_utilities::sawtooth:
-                play_val += sound_utilities::wave_lookup_tables.sawtooth[sound_utilities::phase_to_index(note->m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.sawtooth[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             default:
                 assert(false); // We should never hit default.
@@ -125,7 +117,7 @@ int midi_driver::callback(const void* input_buffer, void* output_buffer, unsigne
             }
 
             // Advance the phase.
-            note->m_current_phase = sound_utilities::two_pi_wrapper(note->m_current_phase + sound_utilities::two_pi * note->m_frequency / static_cast<float>(data->sample_rate));
+            note.m_current_phase = sound_utilities::two_pi_wrapper(note.m_current_phase + sound_utilities::two_pi * note.m_frequency / static_cast<float>(data->sample_rate));
         }
 
         // Apply the master volume_.
@@ -253,8 +245,6 @@ void midi_driver::processor()
     }
 
     midi_reader_->closePort();
-
-    initializied_ = false;
 }
 
 void* midi_driver::get_data()

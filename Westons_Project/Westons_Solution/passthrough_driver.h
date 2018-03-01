@@ -21,7 +21,5 @@ private:
     static bool initializied_;
 
     static sound_utilities::callback_data data_;
-
-    static float volume_;
 };
 

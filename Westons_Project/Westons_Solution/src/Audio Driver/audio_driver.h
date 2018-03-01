@@ -19,6 +19,8 @@ public:
 
     std::string get_error() const;
 
+    static bool check_channels(int32_t required_input, int32_t required_output);
+
 private:
 
     bool error_detected(const PaError& error);
@@ -31,8 +33,8 @@ private:
 
     PaStreamCallback* m_stream_callback_;
 
-    std::shared_ptr<PaStreamParameters> m_input_params_;
-    std::shared_ptr<PaStreamParameters> m_output_params_;
+    PaStreamParameters* m_input_params_;
+    PaStreamParameters* m_output_params_;
 
     PaStream* m_stream_;
 

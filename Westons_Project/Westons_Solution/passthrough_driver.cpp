@@ -3,42 +3,21 @@
 #include <memory>
 #include <cassert>
 #include <iostream>
+#include <chrono>
+#include "src/Audio Driver/audio_driver.h"
 
 bool passthrough_driver::initializied_ = false;
 
 sound_utilities::callback_data passthrough_driver::data_ = sound_utilities::callback_data();
 
-float passthrough_driver::volume_ = 0.0f;
-
+/**
+ * \brief Checks if the driver can be run at this time, and fills out the callback data.
+ * \param data Callback data reference to fill.
+ * \return If the driver can be run.
+ */
 bool passthrough_driver::init(sound_utilities::callback_data& data)
 {
-    Pa_Initialize();
-
-    auto failed = false;
-
-    // Get the default device and see if we can play with the given data.
-    const auto output_device_index = Pa_GetDefaultOutputDevice();
-    const auto output_device = Pa_GetDeviceInfo(output_device_index);
-
-    if(!output_device || output_device->maxOutputChannels == 0)
-    {
-        std::cout << "No output channels are available on the default playback device." << std::endl;
-        failed = true;
-    }
-
-    // Get the default input device and see if we can capture with the given data.
-    const auto input_device_index = Pa_GetDefaultInputDevice();
-    const auto input_device = Pa_GetDeviceInfo(input_device_index);
-
-    if(!input_device || input_device->maxInputChannels == 0)
-    {
-        std::cout << "No input channels are available on the default capture device." << std::endl;
-        failed = true;
-    }
-
-    Pa_Terminate();
-
-    if(failed)
+    if(!audio_driver::check_channels(1, 1))
     {
         return false;
     }
@@ -50,10 +29,9 @@ bool passthrough_driver::init(sound_utilities::callback_data& data)
 
     // Looks good. Lets get our stuff setup.
     data_ = data;
-    volume_ = 0.5f;
 
     initializied_ = true;
-    return initializied_;
+    return true;
 }
 
 /**
@@ -83,10 +61,12 @@ int passthrough_driver::callback(const void* input_buffer, void* output_buffer,
     const auto data = static_cast<sound_utilities::callback_data*>(user_data);
 
     assert(data->num_input_channels == 1);
-    assert(data->num_output_channels >= 1);
+    assert(data->num_output_channels == 1);
+    assert(initializied_);
 
-    // Make sure that volume_ is valid.
-    assert(volume_ >= 0.0f && volume_ <= 1.0f);
+    // Do some checks for time.
+    const auto alloted_time = time_info->outputBufferDacTime - time_info->currentTime;
+    const auto start_time = std::chrono::system_clock::now();
 
     // Get the parts we care about ready.
     auto* out = static_cast<float*>(output_buffer);
@@ -95,17 +75,18 @@ int passthrough_driver::callback(const void* input_buffer, void* output_buffer,
     uint64_t tracker = 0;
     for (unsigned int i = 0; i < frames_per_buffer; i++)
     {
-        const auto output_val = sound_utilities::clipped_output(input[i] * volume_);
-        // Loop the input data to all of the output channels.
-        for (auto j = 0; j < data->num_output_channels; ++j)
-        {
-            ++tracker;
-            out[data->num_output_channels*i + j] = output_val;
-        }
+        ++tracker;
+        out[i] = input[i];
     }
 
     // Just a saftey to moke sure that we actually did fill up the channels.
     assert(tracker == frames_per_buffer * data->num_output_channels);
+
+    // See that we fulfiled the time requirements.
+    std::chrono::duration<double> elapsed_time = std::chrono::system_clock::now() - start_time;
+    const auto elapsed_seconds = elapsed_time.count();
+    assert(elapsed_seconds < alloted_time);
+
     return 0;
 }
 
@@ -129,8 +110,6 @@ void passthrough_driver::processor()
     std::cin >> read_string;
 
     std::cout << "Exiting passthrough mode." << std::endl;
-
-    initializied_ = false;
 }
 
 /**
