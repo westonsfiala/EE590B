@@ -2,24 +2,45 @@
 #include <iostream>
 #include "src/rtmidi/RtMidi.h"
 #include <cassert>
-#include <chrono>
 #include <thread>
 #include "src/Audio Driver/audio_driver.h"
+#include <queue>
+#include <cmath>
 
 
-bool midi_driver::initializied_ = false;;
+bool midi_driver::initializied_ = false;
+
+bool midi_driver::callback_active_ = false;
 
 sound_utilities::callback_data midi_driver::data_ = sound_utilities::callback_data();
 
-// Map that keeps track of the different notes that are currently being played.
-std::map<int, std::shared_ptr<note_data>> midi_driver::note_map_ = std::map<int, std::shared_ptr<note_data>>();
-
-// Midi reader for processing inputs;
-std::shared_ptr<RtMidiIn> midi_driver::midi_reader_ = nullptr;
-
 // The volume and sound that will be processed by the callback.
-float midi_driver::volume_ = 0.0f;
 sound_data midi_driver::sound_ = sound_data();
+
+sound_utilities::wave_type midi_driver::current_wave_ = sound_utilities::sine;
+
+// Values needed to process the midi bytes.
+static const uint8_t channel_one_key_press = 144;
+
+static const uint8_t sine_wave_key = 64;
+static const uint8_t square_wave_key = 65;
+static const uint8_t sawtooth_wave_key = 66;
+static const uint8_t triangle_wave_key = 67;
+
+static const uint8_t quit_midi_key = 81;
+
+static const uint8_t channel_two_key_press = 145;
+static const uint8_t channel_two_key_release = 129;
+
+static const uint8_t middle_note_value = 60;
+static const float middle_note_frequency = 440.0f;
+
+static const uint8_t max_volume_value = 127;
+
+static std::vector<float> frequencies_vector;
+
+// Half step value.
+static const float twelth_root_two = std::exp2(1.0f/12.0f);
 
 /**
 * \brief Checks if the driver can be run at this time, and fills out the callback data.
@@ -33,9 +54,10 @@ bool midi_driver::init(sound_utilities::callback_data& data)
         return false;
     }
 
+    RtMidiIn* midi_reader;
     // Get our reader setup.
     try {
-        midi_reader_ = std::make_shared<RtMidiIn>();
+        midi_reader = new RtMidiIn();
     }
     catch (RtMidiError &error) {
         error.printMessage();
@@ -43,11 +65,13 @@ bool midi_driver::init(sound_utilities::callback_data& data)
     }
     
     // See if there are any ports we can work with.
-    if(midi_reader_->getPortCount() == 0)
+    if(midi_reader->getPortCount() == 0)
     {
         std::cout << "No MIDI channels are available." << std::endl;
         return false;
     }
+
+    delete midi_reader;
 
     // Setup the values to what we allow them to be.
     data.num_input_channels = 0;
@@ -57,8 +81,15 @@ bool midi_driver::init(sound_utilities::callback_data& data)
     // Get our data pointer ready.
     data_ = data;
 
-    // Notes are so loud by themselves at max volume. Drop that down!
-    volume_ = 0.1f;
+    // We are not in the callback, so it is false.
+    callback_active_ = false;
+
+    // Fill out the frequency vector. No need to calculate this on the fly all the time.
+    for(auto i = 0; i <= 127; ++i)
+    {
+        const auto frequency_modifier = std::pow(twelth_root_two, i - middle_note_value);
+        frequencies_vector.push_back(middle_note_frequency * frequency_modifier);
+    }
 
     // Say that we have been initialized.
     initializied_ = true;
@@ -85,31 +116,30 @@ int midi_driver::callback(const void* input_buffer, void* output_buffer, unsigne
     auto* out = static_cast<float*>(output_buffer);
 
     uint64_t tracker = 0;
+    callback_active_ = true;
     for (unsigned int i = 0; i < frames_per_buffer; i++)
     {
-        // Make sure nothing is wrong with volume_.
-        assert(volume_ >= 0.0f && volume_ <= 1.0f);
-
         auto play_val = 0.0f;
 
         // Go through all of the notes in the sound, get their value, and advance their phase.
         for (auto& note : sound_.m_notes)
         {
-            const auto note_volume = sound_.m_note_volume;
+            const auto note_volume = sound_.m_note_volume * note.m_volume;
+            const auto note_index = sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size);
 
             switch (note.m_wave)
             {
             case sound_utilities::sine:
-                play_val += sound_utilities::wave_lookup_tables.sine[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.sine[note_index] * note_volume;
                 break;
             case sound_utilities::square:
-                play_val += sound_utilities::wave_lookup_tables.square[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.square[note_index] * note_volume;
                 break;
             case sound_utilities::triangle:
-                play_val += sound_utilities::wave_lookup_tables.triangle[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.triangle[note_index] * note_volume;
                 break;
             case sound_utilities::sawtooth:
-                play_val += sound_utilities::wave_lookup_tables.sawtooth[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.sawtooth[note_index] * note_volume;
                 break;
             default:
                 assert(false); // We should never hit default.
@@ -120,8 +150,8 @@ int midi_driver::callback(const void* input_buffer, void* output_buffer, unsigne
             note.m_current_phase = sound_utilities::two_pi_wrapper(note.m_current_phase + sound_utilities::two_pi * note.m_frequency / static_cast<float>(data->sample_rate));
         }
 
-        // Apply the master volume_.
-        play_val = sound_utilities::clipped_output(play_val * volume_);
+        // Apply the master volume.
+        play_val = sound_utilities::clipped_output(play_val * sound_utilities::non_clip_volume);
 
         // Playback to the output.
         for (auto j = 0; j < data->num_output_channels; ++j)
@@ -134,6 +164,7 @@ int midi_driver::callback(const void* input_buffer, void* output_buffer, unsigne
     // Just a saftey to moke sure that we actually did fill up the channels.
     assert(tracker == frames_per_buffer * data->num_output_channels);
 
+    callback_active_ = false;
     return 0;
 }
 
@@ -146,16 +177,23 @@ void midi_driver::processor()
         return;
     }
 
-    // This should be true if initialized is true.
-    assert(midi_reader_);
+    RtMidiIn* midi_reader;
+    // Get our reader setup.
+    try {
+        midi_reader = new RtMidiIn();
+    }
+    catch (RtMidiError &error) {
+        error.printMessage();
+        return;
+    }
 
     // Get a map of all the port indicies to the names of those ports.
     std::map<uint32_t, std::string> midi_port_names;
 
     // Get the names of all the ports.
-    for (uint32_t i = 0; i < midi_reader_->getPortCount(); i++) {
+    for (uint32_t i = 0; i < midi_reader->getPortCount(); i++) {
         try {
-            midi_port_names.emplace(i, midi_reader_->getPortName(i));
+            midi_port_names.emplace(i, midi_reader->getPortName(i));
         }
         catch (RtMidiError &error) {
             // Don't tell them about a port that is bad.
@@ -218,7 +256,7 @@ void midi_driver::processor()
         {
             try
             {
-                midi_reader_->openPort(parsed_value);
+                midi_reader->openPort(parsed_value);
                 proceed = true;
             }
             catch (RtMidiError &error)
@@ -232,22 +270,102 @@ void midi_driver::processor()
         }
     }
 
-    while (!quit) {
-        std::vector<uint8_t> message;
-        const auto stamp = midi_reader_->getMessage(&message);
-        const auto n_bytes = message.size();
-        for (uint32_t i = 0; i < n_bytes; i++)
-            std::cout << "Byte " << i << " = " << static_cast<int>(message[i]) << ", ";
-        if (n_bytes > 0)
-            std::cout << "stamp = " << stamp << std::endl;
+    // We won't always be ready to deal with the messages, so get a buffer.
+    std::queue<std::vector<uint8_t>> waiting_messages;
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    // Lets do some processing.
+    while (!quit) {
+        // Getting the message is a non-blocking check.
+        std::vector<uint8_t> message;
+        midi_reader->getMessage(&message);
+
+        // Get how many bytes we have.
+        const auto n_bytes = message.size();
+
+        // We have a message, add it to the queue.
+        if(n_bytes > 0)
+        {
+            assert(n_bytes == 3);
+            waiting_messages.push(message);
+            for (uint32_t i = 0; i < n_bytes; i++)
+                std::cout << "Byte " << i << " = " << static_cast<int>(message[i]) << ", ";
+            std::cout << std::endl;
+        }
+
+        if(!waiting_messages.empty())
+        {
+            // So long as the callback is not active, we can add and remove notes freely.
+            while(!static_cast<volatile bool>(callback_active_) && !waiting_messages.empty())
+            {
+                // Get the message at the start of the queue.
+                auto read_message = waiting_messages.front();
+                waiting_messages.pop();
+
+                const auto action = read_message[0];
+                const auto note = read_message[1];
+                const auto modifier = read_message[2];
+
+                // Channel 2 key press is an add note action.
+                if(action == channel_two_key_press)
+                {
+                    sound_.add_note(calculate_note(note, modifier));
+                } 
+                // Channel 2 key release is a remove note action.
+                else if (action == channel_two_key_release)
+                {
+                    sound_.remove_notes(frequencies_vector[note]);
+                }
+                // Channel 1 key press is a modify state action.
+                else if (action == channel_one_key_press)
+                {
+                    if(note == sine_wave_key)
+                    {
+                        current_wave_ = sound_utilities::sine;
+                    }
+                    else if(note == square_wave_key)
+                    {
+                        current_wave_ = sound_utilities::square;
+                    }
+                    else if (note == sawtooth_wave_key)
+                    {
+                        current_wave_ = sound_utilities::sawtooth;
+                    }
+                    else if (note == triangle_wave_key)
+                    {
+                        current_wave_ = sound_utilities::triangle;
+                    }
+                    else if (note == quit_midi_key)
+                    {
+                        quit = true;
+                    }
+                }
+            }
+        }
     }
 
-    midi_reader_->closePort();
+    midi_reader->closePort();
+
+    delete midi_reader;
 }
 
 void* midi_driver::get_data()
 {
     return &data_;
+}
+
+/**
+ * \brief Calculates the note that corresponds to the note given values.
+ * \param note Note value that determines what frequency will be played.
+ * \param volume Volume that the note should be played at.
+ * \return Note that corresponds to the given values.
+ */
+note_data midi_driver::calculate_note(const uint8_t note, const uint8_t volume)
+{
+    assert(note < frequencies_vector.size());
+
+    const auto volume_float = static_cast<float>(volume) / max_volume_value;
+    assert(volume_float >= 0.0f && volume_float <= 1.0f);
+
+    // Make a note that will last forever.
+    return note_data(frequencies_vector[note], 0.0, -1, volume_float, current_wave_);
 }

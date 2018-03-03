@@ -18,8 +18,6 @@ sound_utilities::callback_data generation_driver::data_ = sound_utilities::callb
 float generation_driver::volume_ = 0.0f;
 sound_data generation_driver::sound_ = sound_data();
 
-float phase = 0.0f;
-
 /**
 * \brief Checks if the driver can be run at this time, and fills out the callback data.
 * \param data Callback data reference to fill.
@@ -124,7 +122,7 @@ int generation_driver::callback(const void* input_buffer, void* output_buffer,
         sound_.process(data->sample_rate, 1);
 
         // Apply the master volume_.
-        play_val = sound_utilities::clipped_output(play_val * volume_);
+        play_val = sound_utilities::clipped_output(play_val * volume_ * sound_utilities::non_clip_volume);
 
         // Playback to the output.
         for (auto j = 0; j < data->num_output_channels; ++j)
@@ -322,7 +320,7 @@ void generation_driver::processor()
             }
 
             // Make the new note, tell the user about it, then add it.
-            const auto new_note = note_data(frequency, phase, duration, wave);
+            const auto new_note = note_data(frequency, phase, duration, 1.0f, wave);
 
             std::cout << "Adding a new note with Frequency: " << frequency 
             << ", Phase Offset: " << phase 

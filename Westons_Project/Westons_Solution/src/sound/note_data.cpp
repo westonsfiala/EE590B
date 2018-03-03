@@ -7,9 +7,10 @@
  * \param frequency Frequency of the sound. If it is negative, takes the absolute value.
  * \param phase_offset Phase offset of the sound, must be between 0 <-> two_pi
  * \param duration Duration of the sound in milliseconds. Negative valued duration means infinite play time.
+ * \param volume Volume that the note should be played at.
  * \param wave Type of wave to be used by this sound
  */
-note_data::note_data(const float frequency, const float phase_offset, const float duration, const sound_utilities::wave_type wave)
+note_data::note_data(const float frequency, const float phase_offset, const float duration, const float volume, const sound_utilities::wave_type wave)
 {
     assert(frequency > 0.0f);
     m_frequency = frequency;
@@ -18,6 +19,9 @@ note_data::note_data(const float frequency, const float phase_offset, const floa
     m_phase_offset = phase_offset;
 
     m_duration = duration;
+
+    assert(volume >= 0.0f && volume <= 1.0f);
+    m_volume = volume;
 
     assert(wave == sound_utilities::sine || wave == sound_utilities::square || wave == sound_utilities::sawtooth || wave == sound_utilities::triangle);
     m_wave = wave;
@@ -38,6 +42,11 @@ bool note_data::operator==(const note_data& other) const
     }
 
     if(m_duration != other.m_duration)
+    {
+        return false;
+    }
+
+    if(m_volume != other.m_volume)
     {
         return false;
     }

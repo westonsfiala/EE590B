@@ -16,6 +16,8 @@ public:
     const static uint32_t default_sample_rate;
     const static uint32_t table_size;
 
+    const static float non_clip_volume;
+
     enum wave_type
     {
         sine,

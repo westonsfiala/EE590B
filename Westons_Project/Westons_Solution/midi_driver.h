@@ -23,18 +23,18 @@ public:
     static void* get_data();
 
 private:
+
+    static note_data calculate_note(uint8_t note, uint8_t volume);
+
     static bool initializied_;
+
+    static bool callback_active_;
 
     static sound_utilities::callback_data data_;
 
-    // Map that keeps track of the different notes that are currently being played.
-    static std::map<int, std::shared_ptr<note_data>> note_map_;
-
-    // Midi reader for processing inputs;
-    static std::shared_ptr<RtMidiIn> midi_reader_;
+    static sound_utilities::wave_type current_wave_;
 
     // The volume and sound that will be processed by the callback.
-    static float volume_;
     static sound_data sound_;
 };
 

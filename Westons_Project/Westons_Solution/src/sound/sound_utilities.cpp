@@ -10,6 +10,9 @@ const float sound_utilities::two_pi = 2.0f * pi;
 const uint32_t sound_utilities::default_sample_rate = 44100;
 const uint32_t sound_utilities::table_size = 1 << 12;
 
+// If you have signals at max volume playing over half, it clips. So scale everything by half.
+const float sound_utilities::non_clip_volume = 0.5f;
+
 const sound_utilities::wave_tables sound_utilities::wave_lookup_tables = wave_tables();
 
 sound_utilities::wave_type sound_utilities::from_string(const std::string& wave)
@@ -35,12 +38,13 @@ sound_utilities::wave_type sound_utilities::from_string(const std::string& wave)
 
 /**
 * \brief Takes a float input and clips it between -1.0 & 1.0. If no clipping is needed, returns the input.
+* This value is used for clipping because the raspberry pi has issues with values higher than that.
 * \param input Float that needs to be checked for out of bounds input ranges.
 * \return Clipped version of the input value.
 */
 float sound_utilities::clipped_output(const float& input)
 {
-    return std::max(std::min(1.0f, input), 0.0f);
+    return std::max(std::min(1.0f, input), -1.0f);
 }
 
 /**

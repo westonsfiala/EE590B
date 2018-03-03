@@ -69,16 +69,23 @@ void sound_data::process(const int sample_rate, const int num_samples)
     calculate_note_volume();
 }
 
+/**
+ * \brief Calculates the volume that should be applied to all notes in this sound to ensure no clipping.
+ */
 void sound_data::calculate_note_volume()
 {
     auto max_volume = 1.0f;
 
-    // If we have more than 1 note, diminish the volume_ of all notes.
-    if (!m_notes.empty())
+    auto volume_sum = 0.0f;
+    for(auto note : m_notes)
     {
-        // Don't want to divide by 0.
-        assert(m_notes.size());
-        max_volume = max_volume / static_cast<float>(m_notes.size());
+        volume_sum += note.m_volume;
+    }
+
+    // If we have more than 1.0 combined volume, then lower down the note volume.
+    if(volume_sum > max_volume)
+    {
+        max_volume = max_volume / volume_sum;
     }
 
     // Should never be able to have these happen.
