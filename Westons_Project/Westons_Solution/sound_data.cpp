@@ -20,15 +20,15 @@ void sound_data::remove_notes(const float frequency)
     std::vector<note_data> reap_notes;
 
     // Iterate over our list and reap what needs reaping.
-    for(const auto& note : m_notes)
+    for (const auto& note : m_notes)
     {
-        if(note.m_frequency == frequency)
+        if (note.m_frequency == frequency)
         {
             reap_notes.push_back(note);
         }
     }
 
-    for(auto reap_note : reap_notes)
+    for (auto reap_note : reap_notes)
     {
         m_notes.remove(reap_note);
     }
@@ -49,11 +49,11 @@ void sound_data::process(const int sample_rate, const int num_samples)
     for (auto& note : m_notes)
     {
         // Only care about positive timed notes.
-        if(note.m_duration > 0.0f)
+        if (note.m_duration > 0.0f)
         {
             // Subtract away the milliseconds that passed.
             note.m_duration -= 1000.0f * static_cast<float>(num_samples) / static_cast<float>(sample_rate);
-            if(note.m_duration < 0.0f)
+            if (note.m_duration < 0.0f)
             {
                 reap_notes.push_back(note);
             }
@@ -61,7 +61,7 @@ void sound_data::process(const int sample_rate, const int num_samples)
     }
 
     // Remove them after the processing block.
-    for(auto reap_note : reap_notes)
+    for (auto reap_note : reap_notes)
     {
         m_notes.remove(reap_note);
     }
@@ -77,13 +77,13 @@ void sound_data::calculate_note_volume()
     auto max_volume = 1.0f;
 
     auto volume_sum = 0.0f;
-    for(auto note : m_notes)
+    for (auto note : m_notes)
     {
         volume_sum += note.m_volume;
     }
 
     // If we have more than 1.0 combined volume, then lower down the note volume.
-    if(volume_sum > max_volume)
+    if (volume_sum > max_volume)
     {
         max_volume = max_volume / volume_sum;
     }

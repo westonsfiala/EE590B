@@ -25,10 +25,12 @@ int main()
 
     // Passthrough
     auto pass_call_data = sound_utilities::callback_data();
-    if(passthrough_driver::init(pass_call_data))
+    if (passthrough_driver::init(pass_call_data))
     {
-    const auto passthrough_info = sound_utilities::callback_info(passthrough_driver::callback, pass_call_data, passthrough_driver::get_data(), "Passthrough", passthrough_driver::processor);
-    available_callbacks.push_back(passthrough_info);
+        const auto passthrough_info = sound_utilities::callback_info(passthrough_driver::callback, pass_call_data,
+                                                                     passthrough_driver::get_data(), "Passthrough",
+                                                                     passthrough_driver::processor);
+        available_callbacks.push_back(passthrough_info);
     }
     else
     {
@@ -37,9 +39,12 @@ int main()
 
     // Frequency Generator
     auto gen_call_data = sound_utilities::callback_data();
-    if(generation_driver::init(gen_call_data))
+    if (generation_driver::init(gen_call_data))
     {
-        const auto frequency_gen_info = sound_utilities::callback_info(generation_driver::callback, gen_call_data, generation_driver::get_data(), "Frequency Generation", generation_driver::processor);
+        const auto frequency_gen_info = sound_utilities::callback_info(generation_driver::callback, gen_call_data,
+                                                                       generation_driver::get_data(),
+                                                                       "Frequency Generation",
+                                                                       generation_driver::processor);
         available_callbacks.push_back(frequency_gen_info);
     }
     else
@@ -49,9 +54,11 @@ int main()
 
     // Midi Reader
     auto midi_call_data = sound_utilities::callback_data();
-    if(midi_driver::init(midi_call_data))
+    if (midi_driver::init(midi_call_data))
     {
-        const auto midi_gen_info = sound_utilities::callback_info(midi_driver::callback, midi_call_data, midi_driver::get_data(), "Midi player", midi_driver::processor);
+        const auto midi_gen_info = sound_utilities::callback_info(midi_driver::callback, midi_call_data,
+                                                                  midi_driver::get_data(), "Midi player",
+                                                                  midi_driver::processor);
         available_callbacks.push_back(midi_gen_info);
     }
     else
@@ -62,11 +69,11 @@ int main()
     auto quit = false;
 
     // If we have no drivers, quit out.
-    if(available_callbacks.empty())
+    if (available_callbacks.empty())
     {
         std::cout << "No drivers are currently enabled, exiting program" << std::endl;
         quit = true;
-        
+
         // Assert here so that it will break instead of just exiting.
         assert(false);
     }
@@ -81,7 +88,7 @@ int main()
     {
         std::cout << "Please select an available mode to use by entering its associated number:" << std::endl;
 
-        for(auto i = 0; i < static_cast<int>(available_callbacks.size()); ++i)
+        for (auto i = 0; i < static_cast<int>(available_callbacks.size()); ++i)
         {
             std::cout << "[" << i << "]: " << available_callbacks[i].m_callback_name << std::endl;
         }
@@ -94,7 +101,7 @@ int main()
         std::cin >> read_string;
 
         // Catch the exit condition
-        if(read_string == exit_string)
+        if (read_string == exit_string)
         {
             quit = true;
             continue;
@@ -106,14 +113,14 @@ int main()
         {
             parsed_value = std::stoi(read_string);
         }
-        // Catch all exceptions. If something bad slipped through the cracks, continue without changing anything.
+            // Catch all exceptions. If something bad slipped through the cracks, continue without changing anything.
         catch (...)
         {
             continue;
         }
 
         // If we have a parsed value in a valid range, start up that callback!
-        if(parsed_value >= 0 && parsed_value < static_cast<int>(available_callbacks.size()))
+        if (parsed_value >= 0 && parsed_value < static_cast<int>(available_callbacks.size()))
         {
             const auto selected_callback = available_callbacks[parsed_value];
 
@@ -123,7 +130,8 @@ int main()
             // Start it up!
             if (!driver.start())
             {
-                std::cerr << "Failed to start [" << selected_callback.m_callback_name << "]" << std::endl << "Error: " + driver.get_error() << std::endl;
+                std::cerr << "Failed to start [" << selected_callback.m_callback_name << "]" << std::endl << "Error: " +
+                    driver.get_error() << std::endl;
                 continue;
             }
 
@@ -131,9 +139,10 @@ int main()
             selected_callback.m_process_method();
 
             // Stop the driver.
-            if(!driver.stop())
+            if (!driver.stop())
             {
-                std::cerr << "Failed to stop [" << selected_callback.m_callback_name << "]" << std::endl << "Error: " + driver.get_error() << std::endl;
+                std::cerr << "Failed to stop [" << selected_callback.m_callback_name << "]" << std::endl << "Error: " +
+                    driver.get_error() << std::endl;
                 continue;
             }
         }

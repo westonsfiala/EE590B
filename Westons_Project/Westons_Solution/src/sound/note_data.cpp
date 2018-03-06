@@ -10,7 +10,8 @@
  * \param volume Volume that the note should be played at.
  * \param wave Type of wave to be used by this sound
  */
-note_data::note_data(const float frequency, const float phase_offset, const float duration, const float volume, const sound_utilities::wave_type wave)
+note_data::note_data(const float frequency, const float phase_offset, const float duration, const float volume,
+                     const sound_utilities::wave_type wave)
 {
     assert(frequency > 0.0f);
     m_frequency = frequency;
@@ -23,7 +24,8 @@ note_data::note_data(const float frequency, const float phase_offset, const floa
     assert(volume >= 0.0f && volume <= 1.0f);
     m_volume = volume;
 
-    assert(wave == sound_utilities::sine || wave == sound_utilities::square || wave == sound_utilities::sawtooth || wave == sound_utilities::triangle);
+    assert(wave == sound_utilities::sine || wave == sound_utilities::square || wave == sound_utilities::sawtooth || wave
+        == sound_utilities::triangle);
     m_wave = wave;
 
     m_current_phase = m_phase_offset;
@@ -31,36 +33,35 @@ note_data::note_data(const float frequency, const float phase_offset, const floa
 
 bool note_data::operator==(const note_data& other) const
 {
-    if(m_frequency != other.m_frequency)
+    if (m_frequency != other.m_frequency)
     {
         return false;
     }
 
-    if(m_phase_offset != other.m_phase_offset)
+    if (m_phase_offset != other.m_phase_offset)
     {
         return false;
     }
 
-    if(m_duration != other.m_duration)
+    if (m_duration != other.m_duration)
     {
         return false;
     }
 
-    if(m_volume != other.m_volume)
+    if (m_volume != other.m_volume)
     {
         return false;
     }
 
-    if(m_wave != other.m_wave)
+    if (m_wave != other.m_wave)
     {
         return false;
     }
 
-    if(m_current_phase != other.m_current_phase)
+    if (m_current_phase != other.m_current_phase)
     {
         return false;
     }
 
     return true;
 }
-

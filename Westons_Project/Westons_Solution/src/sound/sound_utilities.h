@@ -9,7 +9,7 @@ class sound_utilities
 {
 public:
     // Values that are nice to have.
-    const static float pi; 
+    const static float pi;
     const static float two_pi;
 
     // Values that we will use by default.
@@ -80,6 +80,7 @@ public:
             num_output_channels = output_channels;
             sample_rate = rate;
         }
+
         int num_input_channels;
         int num_output_channels;
         int sample_rate;
@@ -92,7 +93,8 @@ public:
     */
     struct callback_info
     {
-        callback_info(PaStreamCallback* callback, const callback_data& call_data, void* callback_data_ptr, const std::string& callback_name, callback_processor* process_method)
+        callback_info(PaStreamCallback* callback, const callback_data& call_data, void* callback_data_ptr,
+                      const std::string& callback_name, callback_processor* process_method)
         {
             m_callback = callback;
             m_callback_data = call_data;
@@ -100,6 +102,7 @@ public:
             m_callback_name = callback_name;
             m_process_method = process_method;
         }
+
         PaStreamCallback* m_callback;
         callback_data m_callback_data;
         void* m_callback_data_ptr;

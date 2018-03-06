@@ -19,4 +19,3 @@ public:
 private:
     void calculate_note_volume();
 };
-

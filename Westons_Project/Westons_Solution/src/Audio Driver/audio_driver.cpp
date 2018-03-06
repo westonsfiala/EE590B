@@ -6,8 +6,8 @@
  * \brief Constructor for an audio driver that can have some number of input and output channels.
  */
 audio_driver::audio_driver(const sound_utilities::callback_info info):
-    m_running_(false), 
-    m_input_params_(nullptr), 
+    m_running_(false),
+    m_input_params_(nullptr),
     m_output_params_(nullptr),
     m_stream_(nullptr)
 {
@@ -50,10 +50,10 @@ bool audio_driver::start()
     {
         return false;
     }
-    
+
     // We should not have any parameters at this point.
     assert(!m_input_params_);
-    if(m_input_params_)
+    if (m_input_params_)
     {
         delete m_input_params_;
         m_input_params_ = nullptr;
@@ -72,7 +72,7 @@ bool audio_driver::start()
         // This should never be negative.
         assert(default_device_info->maxInputChannels > 0);
         m_input_channels_ = std::min(static_cast<uint32_t>(default_device_info->maxInputChannels),
-                                        m_input_channels_);
+                                     m_input_channels_);
         // Sanity check again.
         assert(m_input_channels_ > 0);
 
@@ -83,7 +83,7 @@ bool audio_driver::start()
         m_input_params_->suggestedLatency = default_device_info->defaultHighInputLatency;
         m_input_params_->hostApiSpecificStreamInfo = nullptr;
     }
-    // No input channels, input params need to be nullptr.
+        // No input channels, input params need to be nullptr.
     else
     {
         m_input_params_ = nullptr;
@@ -110,7 +110,7 @@ bool audio_driver::start()
         // This should never be negative.
         assert(default_device_info->maxOutputChannels > 0);
         m_output_channels_ = std::min(static_cast<uint32_t>(default_device_info->maxOutputChannels),
-                                        m_output_channels_);
+                                      m_output_channels_);
         // Sanity check again.
         assert(m_output_channels_ > 0);
 
@@ -130,8 +130,8 @@ bool audio_driver::start()
 
     // Open the stream to the default hardware devices.
     const auto err = Pa_OpenStream(&m_stream_, m_input_params_, m_output_params_,
-                                    m_sample_rate_, paFramesPerBufferUnspecified, paNoFlag,
-                                    m_stream_callback_, m_data_);
+                                   m_sample_rate_, paFramesPerBufferUnspecified, paNoFlag,
+                                   m_stream_callback_, m_data_);
 
     if (error_detected(err))
     {
@@ -221,14 +221,14 @@ bool audio_driver::check_channels(const int32_t required_input, const int32_t re
         return true;
     }
 
-    if(Pa_Initialize() != paNoError)
+    if (Pa_Initialize() != paNoError)
     {
         return false;
     }
 
     auto passed = true;
 
-    if(required_input > 0)
+    if (required_input > 0)
     {
         // Get the default input device and see if we can capture with the given data.
         const auto input_device_index = Pa_GetDefaultInputDevice();
@@ -241,7 +241,7 @@ bool audio_driver::check_channels(const int32_t required_input, const int32_t re
         }
     }
 
-    if(required_output > 0)
+    if (required_output > 0)
     {
         // Get the default device and see if we can play with the given data.
         const auto output_device_index = Pa_GetDefaultOutputDevice();

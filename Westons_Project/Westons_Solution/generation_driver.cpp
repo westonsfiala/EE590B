@@ -9,14 +9,14 @@
 #include <iostream>
 #include <chrono>
 
-bool generation_driver::initializied_ = false;;
 
 // Our data pointer.
 sound_utilities::callback_data generation_driver::data_ = sound_utilities::callback_data();
 
 // values used in the callback.
-float generation_driver::volume_ = 0.0f;
-sound_data generation_driver::sound_ = sound_data();
+static float volume = 0.0f;
+static sound_data generation_sound = sound_data();
+static bool generation_initializied = false;
 
 /**
 * \brief Checks if the driver can be run at this time, and fills out the callback data.
@@ -25,7 +25,7 @@ sound_data generation_driver::sound_ = sound_data();
 */
 bool generation_driver::init(sound_utilities::callback_data& data)
 {
-    if(!audio_driver::check_channels(0,1))
+    if (!audio_driver::check_channels(0, 1))
     {
         return false;
     }
@@ -39,12 +39,12 @@ bool generation_driver::init(sound_utilities::callback_data& data)
     data_ = data;
 
     // Notes are so loud by themselves at max volume. Drop that down!
-    volume_ = 0.1f;
+    volume = 0.1f;
 
     // Say that we have been initialized.
-    initializied_ = true;
+    generation_initializied = true;
 
-    return initializied_;
+    return generation_initializied;
 }
 
 /**
@@ -58,10 +58,10 @@ bool generation_driver::init(sound_utilities::callback_data& data)
 * \return If the passthrough worked correctly. 0 for success, !0 for failure.
 */
 int generation_driver::callback(const void* input_buffer, void* output_buffer,
-    const unsigned long frames_per_buffer,
-    const PaStreamCallbackTimeInfo* time_info,
-    PaStreamCallbackFlags status_flags,
-    void* user_data)
+                                const unsigned long frames_per_buffer,
+                                const PaStreamCallbackTimeInfo* time_info,
+                                PaStreamCallbackFlags status_flags,
+                                void* user_data)
 {
     // stop warnings by casting to void.
     static_cast<void>(status_flags);
@@ -74,7 +74,7 @@ int generation_driver::callback(const void* input_buffer, void* output_buffer,
     // Check for valid values.
     assert(data->num_input_channels == 0);
     assert(data->num_output_channels >= 1);
-    assert(initializied_);
+    assert(generation_initializied);
 
     // Do some checks for time.
     const auto alloted_time = time_info->outputBufferDacTime - time_info->currentTime;
@@ -86,49 +86,55 @@ int generation_driver::callback(const void* input_buffer, void* output_buffer,
     for (unsigned int i = 0; i < frames_per_buffer; i++)
     {
         // Make sure nothing is wrong with volume_.
-        assert(volume_ >= 0.0f && volume_ <= 1.0f);
+        assert(volume >= 0.0f && volume <= 1.0f);
 
         auto play_val = 0.0f;
 
         // Go through all of the notes in the sound and advance their current phase.
-        for(auto& note : sound_.m_notes)
+        for (auto& note : generation_sound.m_notes)
         {
-            const auto note_volume = sound_.m_note_volume;
+            const auto note_volume = generation_sound.m_note_volume;
 
             switch (note.m_wave)
             {
             case sound_utilities::sine:
-                play_val += sound_utilities::wave_lookup_tables.sine[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.sine[sound_utilities::phase_to_index(
+                    note.m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             case sound_utilities::square:
-                play_val += sound_utilities::wave_lookup_tables.square[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.square[sound_utilities::phase_to_index(
+                    note.m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             case sound_utilities::triangle:
-                play_val += sound_utilities::wave_lookup_tables.triangle[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.triangle[sound_utilities::phase_to_index(
+                    note.m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             case sound_utilities::sawtooth:
-                play_val += sound_utilities::wave_lookup_tables.sawtooth[sound_utilities::phase_to_index(note.m_current_phase, sound_utilities::table_size)] * note_volume;
+                play_val += sound_utilities::wave_lookup_tables.sawtooth[sound_utilities::phase_to_index(
+                    note.m_current_phase, sound_utilities::table_size)] * note_volume;
                 break;
             default:
                 assert(false); // We should never hit default.
                 break;
             }
-            
+
             // Advance the phase.
-            note.m_current_phase = sound_utilities::two_pi_wrapper(note.m_current_phase + sound_utilities::two_pi * note.m_frequency / static_cast<float>(data->sample_rate));
+            note.m_current_phase = sound_utilities::two_pi_wrapper(
+                note.m_current_phase + sound_utilities::two_pi * note.m_frequency / static_cast<float>(data->sample_rate
+                ));
         }
 
         // Process all the notes every sample.
-        sound_.process(data->sample_rate, 1);
+        generation_sound.process(data->sample_rate, 1);
 
         // Apply the master volume_.
-        play_val = sound_utilities::clipped_output(play_val * volume_ * sound_utilities::non_clip_volume);
+        play_val = sound_utilities::clipped_output(play_val * volume * sound_utilities::non_clip_volume);
 
         // Playback to the output.
         for (auto j = 0; j < data->num_output_channels; ++j)
         {
             ++tracker;
-            out[data->num_output_channels*i + j] = play_val;
+            out[data->num_output_channels * i + j] = play_val;
         }
     }
 
@@ -146,7 +152,7 @@ int generation_driver::callback(const void* input_buffer, void* output_buffer,
 void generation_driver::processor()
 {
     // If we were never initialized, quit.
-    if (!initializied_)
+    if (!generation_initializied)
     {
         std::cout << "Generation Driver was not initialized. Quitting driver." << std::endl;
         return;
@@ -184,9 +190,9 @@ void generation_driver::processor()
 
     // regex string for finding the allowed wave types.
     const std::string valid_wave_regex_string = sine_string + or_match_regex_string // sine
-    + square_string + or_match_regex_string // square
-    + sawtooth_string + or_match_regex_string // sawtooth
-    + triangle_string; // triangle
+        + square_string + or_match_regex_string // square
+        + sawtooth_string + or_match_regex_string // sawtooth
+        + triangle_string; // triangle
 
     const std::regex add_note_regex(start_of_string_regex_string + add_note_string // string identifier
         + float_regex_string + add_note_separator // frequency
@@ -201,7 +207,8 @@ void generation_driver::processor()
         << add_note_separator << "{Duration in milliseconds}"
         << add_note_separator << "{Wave Type}" << std::endl;
 
-    std::cout << "Allowed Wave Types: [" << sine_string << "/" << square_string << "/" << sawtooth_string << "/" << triangle_string << "]" << std::endl;
+    std::cout << "Allowed Wave Types: [" << sine_string << "/" << square_string << "/" << sawtooth_string << "/" <<
+        triangle_string << "]" << std::endl;
 
     std::cout << "Example. addNote:440.0:0.0:1000.0:sine" << std::endl;
 
@@ -220,7 +227,7 @@ void generation_driver::processor()
         std::cin >> read_string;
 
         // Check for exiting.
-        if(std::regex_match(read_string, exit_regex))
+        if (std::regex_match(read_string, exit_regex))
         {
             // Match, lets exit.
             quit = true;
@@ -228,7 +235,7 @@ void generation_driver::processor()
         }
 
         // Check for setting the volume_.
-        if(std::regex_match(read_string, set_volume_regex))
+        if (std::regex_match(read_string, set_volume_regex))
         {
             // Match, lets adjust volume_.
 
@@ -241,14 +248,15 @@ void generation_driver::processor()
             {
                 new_volume = std::stof(volume_string);
             }
-            // If anything goes wrong. Quit.
-            catch(...)
+                // If anything goes wrong. Quit.
+            catch (...)
             {
-                std::cout << "Unable to change the volume_, could not convert '" << volume_string << "' to float." << std::endl;
+                std::cout << "Unable to change the volume_, could not convert '" << volume_string << "' to float." <<
+                    std::endl;
                 continue;
             }
 
-            if(new_volume < 0.0f)
+            if (new_volume < 0.0f)
             {
                 std::cout << "Cannot have negative volume_, setting it to 0.0." << std::endl;
                 new_volume = 0.0f;
@@ -261,14 +269,14 @@ void generation_driver::processor()
             }
 
             // Update the volume_ and tell the user.
-            volume_ = new_volume / 100.0f;
-            std::cout << "Set Volume to : " << volume_ << std::endl;
+            volume = new_volume / 100.0f;
+            std::cout << "Set Volume to : " << volume << std::endl;
 
             continue;
         }
 
         // Check for adding a note.
-        if(std::regex_match(read_string, add_note_regex))
+        if (std::regex_match(read_string, add_note_regex))
         {
             // Match, lets add a note.
 
@@ -281,7 +289,7 @@ void generation_driver::processor()
             std::string token;
 
             // Get all the different tokens.
-            while(std::getline(note_string_stream, token, add_note_separator))
+            while (std::getline(note_string_stream, token, add_note_separator))
             {
                 string_vec.push_back(token);
             }
@@ -290,7 +298,7 @@ void generation_driver::processor()
             assert(string_vec.size() == 4);
 
             // Don't continue if something is wrong.
-            if(string_vec.size() != 4)
+            if (string_vec.size() != 4)
             {
                 std::cout << "Unable to parse add note string" << std::endl;
                 continue;
@@ -322,12 +330,12 @@ void generation_driver::processor()
             // Make the new note, tell the user about it, then add it.
             const auto new_note = note_data(frequency, phase, duration, 1.0f, wave);
 
-            std::cout << "Adding a new note with Frequency: " << frequency 
-            << ", Phase Offset: " << phase 
-            << ", Duration: " << duration 
-            << ", Wave Type: " << wave_string << std::endl;
+            std::cout << "Adding a new note with Frequency: " << frequency
+                << ", Phase Offset: " << phase
+                << ", Duration: " << duration
+                << ", Wave Type: " << wave_string << std::endl;
 
-            sound_.add_note(new_note);
+            generation_sound.add_note(new_note);
             continue;
         }
 
@@ -336,7 +344,7 @@ void generation_driver::processor()
 
     std::cout << "Exiting Frequency Generator mode." << std::endl;
 
-    sound_.m_notes.clear();
+    generation_sound.m_notes.clear();
 }
 
 /**

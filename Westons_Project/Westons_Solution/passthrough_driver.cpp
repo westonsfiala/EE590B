@@ -1,14 +1,14 @@
 #include "passthrough_driver.h"
+#include "src/Audio Driver/audio_driver.h"
 
 #include <memory>
 #include <cassert>
 #include <iostream>
 #include <chrono>
-#include "src/Audio Driver/audio_driver.h"
-
-bool passthrough_driver::initializied_ = false;
 
 sound_utilities::callback_data passthrough_driver::data_ = sound_utilities::callback_data();
+
+static bool passthrough_initialized = false;
 
 /**
  * \brief Checks if the driver can be run at this time, and fills out the callback data.
@@ -17,7 +17,7 @@ sound_utilities::callback_data passthrough_driver::data_ = sound_utilities::call
  */
 bool passthrough_driver::init(sound_utilities::callback_data& data)
 {
-    if(!audio_driver::check_channels(1, 1))
+    if (!audio_driver::check_channels(1, 1))
     {
         return false;
     }
@@ -30,7 +30,7 @@ bool passthrough_driver::init(sound_utilities::callback_data& data)
     // Looks good. Lets get our stuff setup.
     data_ = data;
 
-    initializied_ = true;
+    passthrough_initialized = true;
     return true;
 }
 
@@ -45,10 +45,10 @@ bool passthrough_driver::init(sound_utilities::callback_data& data)
 * \return If the passthrough worked correctly. 0 for success, !0 for failure.
 */
 int passthrough_driver::callback(const void* input_buffer, void* output_buffer,
-    const unsigned long frames_per_buffer,
-    const PaStreamCallbackTimeInfo* time_info,
-    PaStreamCallbackFlags status_flags,
-    void* user_data)
+                                 const unsigned long frames_per_buffer,
+                                 const PaStreamCallbackTimeInfo* time_info,
+                                 PaStreamCallbackFlags status_flags,
+                                 void* user_data)
 {
     // stop warnings by casting to void.
     static_cast<void>(status_flags);
@@ -62,7 +62,7 @@ int passthrough_driver::callback(const void* input_buffer, void* output_buffer,
 
     assert(data->num_input_channels == 1);
     assert(data->num_output_channels == 1);
-    assert(initializied_);
+    assert(passthrough_initialized);
 
     // Do some checks for time.
     const auto alloted_time = time_info->outputBufferDacTime - time_info->currentTime;
@@ -96,13 +96,14 @@ int passthrough_driver::callback(const void* input_buffer, void* output_buffer,
 void passthrough_driver::processor()
 {
     // If we were never initialized, quit.
-    if (!initializied_)
+    if (!passthrough_initialized)
     {
         std::cout << "Passthrough Driver was not initialized. Quitting driver." << std::endl;
         return;
     }
 
-    std::cout << std::endl << "Started passthrough mode. The input audio will be played back to the output." << std::endl;
+    std::cout << std::endl << "Started passthrough mode. The input audio will be played back to the output." << std::
+        endl;
     std::cout << "To exit, enter any string" << std::endl;
 
     // Wait for any input, then exit.

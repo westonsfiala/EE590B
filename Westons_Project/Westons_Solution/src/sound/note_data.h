@@ -7,7 +7,8 @@
  */
 struct note_data
 {
-    explicit note_data(float frequency, float phase_offset, float duration, float volume, sound_utilities::wave_type wave);
+    explicit note_data(float frequency, float phase_offset, float duration, float volume,
+                       sound_utilities::wave_type wave);
     note_data(const note_data& other) = default;
 
     bool operator==(const note_data& other) const;
