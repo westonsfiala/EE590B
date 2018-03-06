@@ -36,6 +36,27 @@ sound_utilities::wave_type sound_utilities::from_string(const std::string& wave)
     throw std::runtime_error("No such type as: " + wave);
 }
 
+std::string sound_utilities::to_string(const wave_type& wave)
+{
+    if(wave == sine)
+    {
+        return "sine";
+    }
+    if(wave == square)
+    {
+        return "square";
+    }
+    if(wave == triangle)
+    {
+        return "triangle";
+    }
+    if(wave == sawtooth)
+    {
+        return "sawtooth";
+    }
+    return "";
+}
+
 /**
 * \brief Takes a float input and clips it between -1.0 & 1.0. If no clipping is needed, returns the input.
 * This value is used for clipping because the raspberry pi has issues with values higher than that.

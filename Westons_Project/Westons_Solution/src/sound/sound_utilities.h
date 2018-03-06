@@ -27,6 +27,7 @@ public:
     };
 
     static wave_type from_string(const std::string& wave);
+    static std::string to_string(const wave_type& wave);
 
     static float clipped_output(const float& input);
 

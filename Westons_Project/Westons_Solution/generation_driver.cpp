@@ -17,6 +17,7 @@ sound_utilities::callback_data generation_driver::data_ = sound_utilities::callb
 static float volume = 0.0f;
 static sound_data generation_sound = sound_data();
 static bool generation_initializied = false;
+static bool generation_callback_active = false;
 
 /**
 * \brief Checks if the driver can be run at this time, and fills out the callback data.
@@ -39,7 +40,7 @@ bool generation_driver::init(sound_utilities::callback_data& data)
     data_ = data;
 
     // Notes are so loud by themselves at max volume. Drop that down!
-    volume = 0.1f;
+    volume = 0.25f;
 
     // Say that we have been initialized.
     generation_initializied = true;
@@ -82,6 +83,7 @@ int generation_driver::callback(const void* input_buffer, void* output_buffer,
 
     auto* out = static_cast<float*>(output_buffer);
 
+    generation_callback_active = true;
     uint64_t tracker = 0;
     for (unsigned int i = 0; i < frames_per_buffer; i++)
     {
@@ -146,6 +148,8 @@ int generation_driver::callback(const void* input_buffer, void* output_buffer,
     const auto elapsed_seconds = elapsed_time.count();
     assert(elapsed_seconds < alloted_time);
 
+    generation_callback_active = false;
+
     return 0;
 }
 
@@ -180,7 +184,9 @@ void generation_driver::processor()
 
     // strings needed for adding a note.
     const std::string add_note_string = "addNote:";
-    const auto add_note_separator = ':';
+    const auto string_seperator = ':';
+
+    const std::string remove_note_string = "removeNote:";
 
     // Strings for the wave types.
     const std::string sine_string = "sine";
@@ -189,31 +195,45 @@ void generation_driver::processor()
     const std::string triangle_string = "triangle";
 
     // regex string for finding the allowed wave types.
-    const std::string valid_wave_regex_string = sine_string + or_match_regex_string // sine
+    const auto valid_wave_regex_string = sine_string + or_match_regex_string // sine
         + square_string + or_match_regex_string // square
         + sawtooth_string + or_match_regex_string // sawtooth
         + triangle_string; // triangle
 
     const std::regex add_note_regex(start_of_string_regex_string + add_note_string // string identifier
-        + float_regex_string + add_note_separator // frequency
-        + float_regex_string + add_note_separator // phase
-        + float_regex_string + add_note_separator // duration
+        + float_regex_string + string_seperator // frequency
+        + float_regex_string + string_seperator // phase
+        + float_regex_string + string_seperator // duration
         + valid_wave_regex_string + end_of_string_regex_string); // wave
+
+    const std::regex remove_note_regex(start_of_string_regex_string + remove_note_string // string identifier
+        + float_regex_string + end_of_string_regex_string); // frequency
+
+    // Regex for getting what notes are playing.
+    const std::regex get_current_notes_regex(start_of_string_regex_string + "getNotes" + end_of_string_regex_string);
 
     // Tell them how to add a note.
     std::cout << "To add a note, enter: '"
         << add_note_string << "{Frequency in Hz}"
-        << add_note_separator << "{Phase offset in radians}"
-        << add_note_separator << "{Duration in milliseconds}"
-        << add_note_separator << "{Wave Type}" << std::endl;
+        << string_seperator << "{Phase offset in Degrees}"
+        << string_seperator << "{Duration in milliseconds}"
+        << string_seperator << "{Wave Type}" << std::endl;
+
+    // Tell them how to remove a note.
+    std::cout << "To remove a note, enter: '"
+        << remove_note_string << "{Frequency in Hz}" << std::endl;
 
     std::cout << "Allowed Wave Types: [" << sine_string << "/" << square_string << "/" << sawtooth_string << "/" <<
         triangle_string << "]" << std::endl;
 
-    std::cout << "Example. addNote:440.0:0.0:1000.0:sine" << std::endl;
+    std::cout << "Example. addNote:440.0:90:1000:sine" << std::endl;
+    std::cout << "Example. removeNote:440.0" << std::endl;
 
     // Regex for exiting.
     const std::regex exit_regex(start_of_string_regex_string + "exit" + end_of_string_regex_string);
+
+    // Tell them how to get the current notes.
+    std::cout << "To get the current notes, enter 'getNotes'" << std::endl;
 
     // Tell them how to exit.
     std::cout << "To exit, enter 'exit'" << std::endl;
@@ -231,6 +251,31 @@ void generation_driver::processor()
         {
             // Match, lets exit.
             quit = true;
+            continue;
+        }
+
+        if (std::regex_match(read_string, get_current_notes_regex))
+        {
+            // Wait for the callback to not be active then print out all of the notes.
+
+            while (static_cast<volatile bool>(generation_callback_active))
+            {
+                // Wait for the callback to not be active.
+            }
+
+            std::cout << "Current Notes:\n";
+            auto i = 0;
+            for (auto note : generation_sound.m_notes)
+            {
+                std::cout << i
+                    << " : [Frequency = " << note.m_frequency << "]"
+                    << " [Phase = " << note.m_phase_offset << "]"
+                    << " [Duration = " << note.m_duration << "]"
+                    << " [Wave Type = " << sound_utilities::to_string(note.m_wave) << "]\n";
+                ++i;
+            }
+
+            std::cout << std::endl;
             continue;
         }
 
@@ -270,7 +315,7 @@ void generation_driver::processor()
 
             // Update the volume_ and tell the user.
             volume = new_volume / 100.0f;
-            std::cout << "Set Volume to : " << volume << std::endl;
+            std::cout << "Set Volume to : " << new_volume << std::endl;
 
             continue;
         }
@@ -289,7 +334,7 @@ void generation_driver::processor()
             std::string token;
 
             // Get all the different tokens.
-            while (std::getline(note_string_stream, token, add_note_separator))
+            while (std::getline(note_string_stream, token, string_seperator))
             {
                 string_vec.push_back(token);
             }
@@ -317,7 +362,7 @@ void generation_driver::processor()
             try
             {
                 frequency = std::stof(frequency_string);
-                phase = std::stof(phase_string);
+                phase = sound_utilities::two_pi_wrapper(std::stof(phase_string) * sound_utilities::two_pi / 360.0f);
                 duration = std::stof(duration_string);
                 wave = sound_utilities::from_string(wave_string);
             }
@@ -335,7 +380,40 @@ void generation_driver::processor()
                 << ", Duration: " << duration
                 << ", Wave Type: " << wave_string << std::endl;
 
+            while(static_cast<volatile bool>(generation_callback_active))
+            {
+                // Wait for the callback to not be active to add the note.
+            }
+
+            // Add the note in.
             generation_sound.add_note(new_note);
+            continue;
+        }
+
+        if(regex_match(read_string, remove_note_regex))
+        {
+            // Get rid of the first part
+            const auto note_string = std::regex_replace(read_string, std::regex(remove_note_string), "");
+
+            // All that should be left is a frequency.
+            float frequency;
+            try
+            {
+                frequency = std::stof(note_string);
+            }
+            catch (...)
+            {
+                std::cout << "Unable to parse add note string" << std::endl;
+                continue;
+            }
+
+            while(static_cast<volatile bool>(generation_callback_active))
+            {
+                // Wait till the callback is not active before removing notes.
+            }
+
+            // Remove the notes.
+            generation_sound.remove_notes(frequency);
             continue;
         }
 
